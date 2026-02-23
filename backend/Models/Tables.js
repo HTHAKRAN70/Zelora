@@ -22,7 +22,7 @@ const TableSchema = new mongoose.Schema(
     },
     databaseType: {
       type: String,
-      enum: ["mysql", "postgresql", "mongodb"],
+      enum: ["mysql", "postgresql", "mongodb","api"],
       required: true,
     },
     selectedFields: {

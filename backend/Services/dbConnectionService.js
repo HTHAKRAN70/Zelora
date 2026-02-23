@@ -310,55 +310,55 @@ export async function importTableData(dbType, credentials, tableName, selectedFi
   };
 }
     case "api": {
-       const finalUrl = new URL(url);
+      // use the connection credentials to build the request
+      const { uri, method = "GET", headers = {}, queryParams = {} } = credentials;
+      if (!uri) {
+        throw new Error("API URI is required");
+      }
 
-    Object.entries(queryParams).forEach(([key, value]) => {
-      finalUrl.searchParams.append(key, value);
-    });
-
-    // 2️⃣ API request (equivalent to mongoose.createConnection)
-    const response = await fetch(finalUrl.toString(), {
-      method,
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed with ${response.status}`);
-    }
-
-    const rawData = await response.json();
-
-    const docs = Array.isArray(rawData)
-      ? rawData
-      : rawData.data || [rawData];
-
-    let finalDocs = docs;
-
-    if (selectedFields.length > 0) {
-      finalDocs = docs.map((doc) => {
-        const filtered = {};
-        selectedFields.forEach((field) => {
-          if (field in doc) {
-            filtered[field] = doc[field];
-          }
-        });
-        return filtered;
+      const finalUrl = new URL(uri);
+      Object.entries(queryParams).forEach(([key, value]) => {
+        finalUrl.searchParams.append(key, value);
       });
-    }
 
-    // 5️⃣ Column count logic (same as your MongoDB code)
-    const columnCount =
-      selectedFields.length ||
-      (finalDocs[0] ? Object.keys(finalDocs[0]).length : 0);
+      const response = await fetch(finalUrl.toString(), {
+        method,
+        headers,
+      });
 
-    return {
-      success: true,
-      table: tableName,
-      data: finalDocs,
-      rowCount: finalDocs.length,
-      columnCount,
-    };
+      if (!response.ok) {
+        throw new Error(`API request failed with ${response.status}`);
+      }
 
+      const rawData = await response.json();
+      const docs = Array.isArray(rawData)
+        ? rawData
+        : rawData.data || [rawData];
+
+      let finalDocs = docs;
+      if (selectedFields.length > 0) {
+        finalDocs = docs.map((doc) => {
+          const filtered = {};
+          selectedFields.forEach((field) => {
+            if (field in doc) {
+              filtered[field] = doc[field];
+            }
+          });
+          return filtered;
+        });
+      }
+
+      const columnCount =
+        selectedFields.length ||
+        (finalDocs[0] ? Object.keys(finalDocs[0]).length : 0);
+
+      return {
+        success: true,
+        table: tableName || "API",
+        data: finalDocs,
+        rowCount: finalDocs.length,
+        columnCount,
+      };
     }
 
       default:

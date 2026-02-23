@@ -22,6 +22,20 @@ export const fetchTables = createAsyncThunk("db/fetchTables", async (connectionI
   return res.data;
 });
 
+
+// thunk used for directly importing API data (bypasses modal)
+// we keep it for completeness but it is not used when opening the modal.
+export const importAPITable = createAsyncThunk("db/importAPITable", async (connectionId) => {
+  try {
+    console.log("Importing API data for connectionId:", connectionId);
+    const res = await api.post(`/db/importapidata/${connectionId}`);
+    return res.data;
+  } catch (error) {
+    console.error("error while importing API data", error);
+    // rethrow so that callers know the request failed
+    throw error;
+  }
+});
 export const importTable = createAsyncThunk("db/importTable", async (data) => {
  let res;
   try{
@@ -31,17 +45,6 @@ export const importTable = createAsyncThunk("db/importTable", async (data) => {
  }
  
  
-  return res.data;
-});
-export const importAPITable = createAsyncThunk("db/importAPITable", async (connectionId) => {
-  let res;  
-  try{
-    console.log("Importing API data for connectionId:", connectionId);
-    res = await api.post(`/db/importapidata/${connectionId}`);
- }
-  catch(error){
-    console.log("error while importing API data",error);
-  }
   return res.data;
 });
 
@@ -107,11 +110,33 @@ const dbSlice = createSlice({
         }
       })
       .addCase(fetchTables.fulfilled, (state, action) => {
-        state.tablesFromDb = action.payload.tables;
+        // regular databases return `{ tables: {...} }`
+        if (action.payload.tables) {
+          state.tablesFromDb = action.payload.tables;
+        } else if (action.payload.Fields) {
+          // API endpoints send back an array of field names under `Fields`
+          // convert to the shape expected by the modal (table name -> fields)
+          state.tablesFromDb = { API: action.payload.Fields };
+        } else {
+          // fallback
+          state.tablesFromDb = null;
+        }
       })
       .addCase(importAPITable.fulfilled, (state, action) => {
         console.log("Table imported from API:", action.payload);
-        state.importedTablesFromAPI.push(action.payload.Fields);
+        // When resolving API fields (called from the modal trigger) we
+        // need to make the field list available for the import modal as
+        // tablesFromDb.  The route used by the thunk returns `Fields`.
+        if (action.payload.Fields) {
+          state.tablesFromDb = { API: action.payload.Fields };
+        }
+        // also keep a copy for any other logic that previously relied on
+        // importedTablesFromAPI
+        if (action.payload.Fields) {
+          state.importedTablesFromAPI.push(action.payload.Fields);
+        } else if (action.payload.data) {
+          state.importedTablesFromAPI.push(action.payload.data);
+        }
       })
       .addCase(importTable.fulfilled, (state, action) => {
         state.importedTables.push(action.payload.table);

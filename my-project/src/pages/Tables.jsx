@@ -184,7 +184,8 @@ export default function Tables() {
                         {(table.databaseType === "mongodb" || table.databaseType === "MongoDB") && "🍃"}
                         {(table.databaseType === "mysql" || table.databaseType === "MySQL") && "🐬"}
                         {(table.databaseType === "postgresql" || table.databaseType === "PostgreSQL") && "🐘"}
-                        {table.databaseType}
+                        {(table.databaseType === "api" || table.databaseType === "API") && "🔗"}
+                        {table.databaseType }
                       </span>
                     </td>
                     <td className="px-6 py-4 text-slate-600">{table.rowCount || 0}</td>

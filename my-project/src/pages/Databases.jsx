@@ -8,7 +8,6 @@ import {
   fetchTables,
   importTable,
   importAPITable,
-
 } from "../store/dbSlice.js";
 import { setSelectedConnection, clearTablesFromDb } from "../store/dbSlice.js";
 import ImportTablesModal from "../components/ImportTablesModal.jsx";
@@ -103,6 +102,7 @@ export default function Databases() {
 
   const handleImportTables = async (connection) => {
     dispatch(setSelectedConnection(connection));
+    dispatch(clearTablesFromDb());
     try {
       await dispatch(fetchTables(connection._id)).unwrap();
       setShowImportModal(true);
@@ -111,19 +111,20 @@ export default function Databases() {
     }
   };
   const handleApiImport = async (connection) => {
-    // console.log("Selected connection for API import:", connection); 
-    dispatch(setSelectedConnection(connection));  
+    dispatch(setSelectedConnection(connection));
+    dispatch(clearTablesFromDb());
+    // this thunk hits the `/importapidata` route which returns the field
+    // names; the reducer will populate `tablesFromDb` so the modal can
+    // render the selection list
     try {
-      const result = await dispatch(importAPITable(connection._id)).unwrap();
-        setShowImportModal(true);
-     }
-      catch (error) {
-        console.log("Error importing API data:", error);
-        toast.error("Failed to fetch data from API",);
-      }
+      await dispatch(importAPITable(connection._id)).unwrap();
+      setShowImportModal(true);
+    } catch (error) {
+      toast.error("Failed to fetch data from API");
+    }
   }
    useEffect(() => {
-    console.log("Selected DB Type:", showImportModal);
+    console.log("showImportModal changed to", showImportModal);
   }, [showImportModal]);
 
   const handleNameUpdate = async (connectionId, newName) => {
@@ -378,7 +379,7 @@ export default function Databases() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 rounded text-sm">
-                        {DB_TYPES.find((d) => d.id === conn.dbType)?.icon} {DB_TYPES.find((d) => d.id ===  conn.dbType)?.label}
+                        {DB_TYPES.find((d) => d.id === conn.dbtype)?.icon} {DB_TYPES.find((d) => d.id ===  conn.dbtype)?.label}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -390,11 +391,10 @@ export default function Databases() {
                     <td className="px-6 py-4">
                       <button
                         type="button"
-                        onClick={() => conn.dbType === "api" ? handleApiImport(conn) : handleImportTables(conn)}
-                       
+                        onClick={() => conn.dbtype === "api" ? handleApiImport(conn) : handleImportTables(conn)}
                         className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
                       >
-                        {conn.dbType === "api" ? "Fetch Data" : "Import Tables"}
+                        {conn.dbtype === "api" ? "Fetch Data" : "Import Tables"}
                       </button>
                     </td>
                   </tr>
@@ -405,7 +405,14 @@ export default function Databases() {
         </div>
       )}
 
-      {showImportModal && <ImportTablesModal onClose={() => setShowImportModal(false)} />}
+      {showImportModal && (
+        <ImportTablesModal
+          onClose={() => {
+            setShowImportModal(false);
+            dispatch(clearTablesFromDb());
+          }}
+        />
+      )}
     </div>
   );
 }
