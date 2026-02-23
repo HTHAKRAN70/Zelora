@@ -113,9 +113,6 @@ export default function Databases() {
   const handleApiImport = async (connection) => {
     dispatch(setSelectedConnection(connection));
     dispatch(clearTablesFromDb());
-    // this thunk hits the `/importapidata` route which returns the field
-    // names; the reducer will populate `tablesFromDb` so the modal can
-    // render the selection list
     try {
       await dispatch(importAPITable(connection._id)).unwrap();
       setShowImportModal(true);

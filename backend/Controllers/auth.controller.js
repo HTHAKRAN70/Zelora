@@ -28,7 +28,6 @@ export const registerUsrer=async(req,res,next)=>{
 export const loginUser=async(req,res,next)=>{
     try {
         const {email,password}=req.body;
-        // console.log("Login attempt:", { email });
         const user=await User.findOne({email});
         if(!user){
             return res.status(400).json({message:'Invalid email or password'});
@@ -39,7 +38,6 @@ export const loginUser=async(req,res,next)=>{
         }
         const token=jwt.sign({userId:user._id},JWT_SECRET,{expiresIn:'1d'});
         const {password:_,...userData}=user._doc;
-        // console.log("userData:", userData);
         res.status(200).cookie("access_token",token,{httpOnly:true,secure:true,maxAge:24*60*60*1000}).json({message:'Login successful',token,userData});
     } catch (error) {
         next(error);

@@ -38,15 +38,16 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setCredentials(state, action) {
-      const { token, user } = action.payload;
-      console.log("Setting credentials:", { token, user });
+      const { token, userData } = action.payload;
+      console.log("Setting credentials:", { token, userData });
       state.token = token;
-      state.user = user ?? state.user;
+      state.user = userData ?? state.user;
       state.isAuthenticated = !!token;
       if (token) {
         try {
           localStorage.setItem(AUTH_TOKEN_KEY, token);
-          if (user) localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+          if (userData) localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData ));
+          
         } catch {}
       } else {
         clearStoredAuth();  
