@@ -148,7 +148,7 @@ export const importTable = async (req, res) => {
   try {
     const { connectionId, tableName, selectedFields, displayName } = req.body;
     const userId = req.userId;
-    console.log("Importing table with data:", req.body);
+    console.log("Importing table metadata:", req.body);
 
     const connection = await DBConnection.findOne({ _id: connectionId, userId });
     if (!connection) {
@@ -167,17 +167,17 @@ export const importTable = async (req, res) => {
       displayName: displayName || tableName,
       databaseType: connection.dbtype,
       selectedFields: selectedFields || [],
-      data: result.data,
-      rowCount: result.rowCount,
+      totalRowCount: result.rowCount,
       columnCount: result.columnCount,
     });
     await table.save();
     
     res.json({ success: true, table });
   } catch (error) {
-    console.log("error :",error);
+    console.log("error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
+  
 };
 
 export const getImportedTables = async (req, res) => {
@@ -197,13 +197,63 @@ export const getTableData = async (req, res) => {
     const { tableId } = req.params;
     const userId = req.userId;
 
-    const table = await Table.findOne({ _id: tableId, userId }).populate("connectionId", "connectionName dbtype");
+    const table = await Table.findOne({ _id: tableId, userId }).populate(
+      "connectionId",
+      "connectionName dbtype credentials"
+    );
+    if (!table) {
+      return res.status(404).json({ success: false, message: "Table not found" });
+    }
+    console.log("Fetched table metadata for tableId:", tableId);
+    res.json({ success: true, table });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getTableRows = async (req, res) => {
+  try {
+    const { tableId } = req.params;
+    const { page = 1, pageSize = 10 } = req.query;
+    const userId = req.userId;
+
+    const table = await Table.findOne({ _id: tableId, userId }).populate(
+      "connectionId",
+      "dbtype credentials"
+    );
     if (!table) {
       return res.status(404).json({ success: false, message: "Table not found" });
     }
 
-    res.json({ success: true, table });
+    const { getTableRowsWithPagination } = await import(
+      "../Services/dbConnectionService.js"
+    );
+
+    const result = await getTableRowsWithPagination(
+      table.databaseType,
+      table.connectionId.credentials,
+      table.tableName,
+      table.selectedFields,
+      parseInt(page),
+      parseInt(pageSize)
+    );
+
+    if (!result.success) {
+      return res
+        .status(400)
+        .json({ success: false, message: result.error });
+    }
+
+    res.json({
+      success: true,
+      rows: result.data,
+      page: parseInt(page),
+      pageSize: parseInt(pageSize),
+      totalRows: table.totalRowCount,
+      hasMore: page * pageSize < table.totalRowCount,
+    });
   } catch (error) {
+    console.log("Error fetching table rows:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

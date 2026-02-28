@@ -22,18 +22,14 @@ const TableSchema = new mongoose.Schema(
     },
     databaseType: {
       type: String,
-      enum: ["mysql", "postgresql", "mongodb","api"],
+      enum: ["mysql", "postgresql", "mongodb", "api"],
       required: true,
     },
     selectedFields: {
       type: [String],
       default: [],
     },
-    data: {
-      type: mongoose.Schema.Types.Mixed,
-      default: [],
-    },
-    rowCount: {
+    totalRowCount: {
       type: Number,
       default: 0,
     },

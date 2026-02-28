@@ -51,6 +51,16 @@ export const fetchTableData = createAsyncThunk("db/fetchTableData", async (table
   return res.data;
 });
 
+export const fetchTableRows = createAsyncThunk(
+  "db/fetchTableRows",
+  async ({ tableId, page = 1, pageSize = 10 }) => {
+    const res = await api.get(`/db/table/${tableId}/rows`, {
+      params: { page, pageSize },
+    });
+    return res.data;
+  }
+);
+
 export const updateTableName = createAsyncThunk("db/updateTableName", async ({ tableId, displayName }) => {
   const res = await api.put(`/db/table/${tableId}/name`, { displayName });
   return res.data;
@@ -65,6 +75,13 @@ const dbSlice = createSlice({
     selectedConnection: null,
     tablesFromDb: null,
     selectedTable: null,
+    tableRows: [],
+    tablePagination: {
+      page: 1,
+      pageSize: 10,
+      totalRows: 0,
+      hasMore: false,
+    },
     loading: false,
     error: null,
   },
@@ -78,6 +95,15 @@ const dbSlice = createSlice({
     },
     setSelectedTable: (state, action) => {
       state.selectedTable = action.payload;
+    },
+    resetTableRows: (state) => {
+      state.tableRows = [];
+      state.tablePagination = {
+        page: 1,
+        pageSize: 10,
+        totalRows: 0,
+        hasMore: false,
+      };
     },
   },
   extraReducers: (builder) => {
@@ -130,6 +156,31 @@ const dbSlice = createSlice({
       })
       .addCase(fetchTableData.fulfilled, (state, action) => {
         state.selectedTable = action.payload.table;
+        state.tableRows = [];
+        state.tablePagination = {
+          page: 1,
+          pageSize: 10,
+          totalRows: action.payload.table.totalRowCount || 0,
+          hasMore: true,
+        };
+      })
+      .addCase(fetchTableRows.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchTableRows.fulfilled, (state, action) => {
+        state.loading = false;
+        const { rows, page, pageSize, totalRows, hasMore } = action.payload;
+        state.tableRows = [...state.tableRows, ...rows];
+        state.tablePagination = {
+          page,
+          pageSize,
+          totalRows,
+          hasMore,
+        };
+      })
+      .addCase(fetchTableRows.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
       })
       .addCase(updateTableName.fulfilled, (state, action) => {
         const idx = state.importedTables.findIndex((t) => t._id === action.payload.table._id);
@@ -140,5 +191,5 @@ const dbSlice = createSlice({
   },
 });
 
-export const { setSelectedConnection, clearTablesFromDb, setSelectedTable } = dbSlice.actions;
+export const { setSelectedConnection, clearTablesFromDb, setSelectedTable, resetTableRows } = dbSlice.actions;
 export default dbSlice.reducer;

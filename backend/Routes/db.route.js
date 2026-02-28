@@ -8,6 +8,7 @@ import {
   importTable,
   getImportedTables,
   getTableData,
+  getTableRows,
   updateTableName,
   deleteConnection,
   getTableFromAPI
@@ -25,6 +26,7 @@ router.post("/import", authenticateToken, importTable);
 router.post("/importapidata/:connectionId", authenticateToken, getTableFromAPI);
 router.get("/tables", authenticateToken, getImportedTables);
 router.get("/table/:tableId", authenticateToken, getTableData);
+router.get("/table/:tableId/rows", authenticateToken, getTableRows);
 router.put("/table/:tableId/name", authenticateToken, updateTableName);
 router.delete("/connection/:connectionId", authenticateToken, deleteConnection);
 
