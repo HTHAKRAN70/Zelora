@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_TOKEN_SECRET;
-
 export const authenticateToken = (req, res, next) => {
   // console.log("Authenticating token for request: checking headers");
   const authHeader = req.headers["authorization"];
@@ -13,9 +12,7 @@ export const authenticateToken = (req, res, next) => {
     
     return res.status(401).json({ message: "Access denied. No token provided." });
   }
-
   try {
-    // console.log("Verifying token:", token);
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     next();

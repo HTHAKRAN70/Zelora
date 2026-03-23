@@ -4,7 +4,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 dotenv.config();
+import mysql from "mysql2/promise";
 const JWT_SECRET=process.env.JWT_TOKEN_SECRET;
+
 export const registerUsrer=async(req,res,next)=>{
     try {
         const {name,email,password}=req.body;  

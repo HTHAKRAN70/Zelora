@@ -11,7 +11,8 @@ import {
   getTableRows,
   updateTableName,
   deleteConnection,
-  getTableFromAPI
+  getTableFromAPI,
+  deleteTable
 } from "../Controllers/db.controller.js";
 import { authenticateToken } from "../Middleware/auth.middleware.js";
 
@@ -25,9 +26,11 @@ router.get("/connection/:connectionId/tables", authenticateToken, getTablesFromD
 router.post("/import", authenticateToken, importTable);
 router.post("/importapidata/:connectionId", authenticateToken, getTableFromAPI);
 router.get("/tables", authenticateToken, getImportedTables);
+router.delete("/table/delete/:tableId",authenticateToken,deleteTable);
 router.get("/table/:tableId", authenticateToken, getTableData);
 router.get("/table/:tableId/rows", authenticateToken, getTableRows);
 router.put("/table/:tableId/name", authenticateToken, updateTableName);
-router.delete("/connection/:connectionId", authenticateToken, deleteConnection);
+router.delete("/connections/delete", authenticateToken, deleteConnection);
+
 
 export default router;

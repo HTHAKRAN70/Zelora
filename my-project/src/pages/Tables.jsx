@@ -1,26 +1,86 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import { fetchImportedTables, fetchTableData, fetchTableRows, updateTableName,setSelectedTable, resetTableRows } from "../store/dbSlice.js";
-import { settableSelected, setFieldTypes, updateFieldType, removeField, addField, addnewGraph } from "../store/graphSlice.js";
+import { fetchImportedTables, fetchTableData, fetchTableRows, updateTableName,setSelectedTable, resetTableRows,deleteTable } from "../store/dbSlice.js";
+import { settableSelected, setFieldTypes, updateFieldType, removeField, addField, addnewGraph,saveGraph } from "../store/graphSlice.js";
 import { mapFieldsWithTypes, detectFieldType, FIELD_TYPES } from "../utils/fieldTypeMapper.js";
 import FieldTypeEditor from "../components/FieldTypeEditor.jsx";
 import ChartSuggestions from "../components/ChartSuggestions.jsx";
-
+import { CHART_RULES } from "../components/ChartValidations.jsx";
 export default function Tables() {
   const dispatch = useDispatch();
   const { importedTables, selectedTable, tableRows, tablePagination, loading } = useSelector((state) => state.db);
-  const { CurrentSelectedTable, Allgraphs, fieldTypes } = useSelector((state) => state.graph);
+  const { CurrentSelectedTable,currentSelectedChartType, Allgraphs, fieldTypes } = useSelector((state) => state.graph);
   const [viewMode, setViewMode] = useState("list");
   const [selectedforgraph,setselectedforgraph]=useState(false);
   const [showGraphPopup, setShowGraphPopup] = useState(false);
   const [newFieldName, setNewFieldName] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [xAxis, setXAxis] = useState([]);
+  const [yAxis, setYAxis] = useState([]);
+  const [xLabel, setXLabel] = useState("");
+  const [yLabel, setYLabel] = useState("");
+  const [aggregation, setAggregation] = useState("sum");
+  const [aggregationField,setaggregationField]=useState("");
+  const chartKey = currentSelectedChartType?.trim();
+  const currentRules =Object.entries(CHART_RULES).find(([key]) => key.toLowerCase() === chartKey?.toLowerCase())?.[1] || {};
+  // const currentRules = CHART_RULES[currentSelectedChartType] || {};
+
+  const { user } =useSelector((state) => state.auth);;
+
+
+
+
   const [chartSelected, setChartSelected] = useState(null);
     const tableBodyRef = useRef(null);
-     const pageSize = 10;
+    const pageSize = 10;
 
-  // helper to check if chosen chart works with current field types
+
+  const addXField = (field) => {
+    if (xAxis.length >= maxX) return;
+    if (!xAxis.includes(field)) {
+      setXAxis([...xAxis, field]);
+    }
+  };
+  const removeXField = (field) => {
+    setXAxis(xAxis.filter((f) => f !== field));
+  };
+  const addYField = (field) => {
+    if (yAxis.length >= maxY) return;
+    if (!yAxis.includes(field)) {
+      setYAxis([...yAxis, field]);
+    }
+  };
+
+  const removeYField = (field) => {
+    setYAxis(yAxis.filter((f) => f !== field));
+  };
+  
+  
+  const getFieldsForAxis = (axis) => {
+  const rule = axis === "x" ? xRule : yRule;
+
+  if (!rule?.types || !Array.isArray(rule.types)) {
+    return [];
+  }
+
+  return availableFields.filter((field) => {
+    const matchedKey = Object.keys(fieldTypes).find(
+      (key) => key.toLowerCase() === field.trim().toLowerCase()
+    );
+
+    const type = matchedKey ? fieldTypes[matchedKey] : undefined;
+
+    if (!type) return false;
+
+    return rule.types
+      .map((t) => t.toLowerCase())
+      .includes(type.toLowerCase());
+  });
+};
+
+
+
+
   const checkChartCompatibility = (fieldTypes, chart) => {
     if (!chart) return false;
     const types = Object.values(fieldTypes);
@@ -49,7 +109,6 @@ export default function Tables() {
 
   const chartValid = checkChartCompatibility(fieldTypes, chartSelected);
 
-  // lock scrolling on body when modal visible
   useEffect(() => {
     if (showGraphPopup) {
       document.body.style.overflow = "hidden";
@@ -92,6 +151,7 @@ export default function Tables() {
       mappedFields.forEach(field => {
         fieldTypesObj[field.fieldName] = field.type;
       });
+
       dispatch(setFieldTypes(fieldTypesObj));
       console.log("Initialized field types:", fieldTypesObj);
     }
@@ -112,13 +172,6 @@ export default function Tables() {
       toast.error("Failed to load table data");
     }
   };
-  useEffect(() => {
-    console.log("Selected Table:", selectedTable);
-  },  [selectedTable]);
-
-  useEffect(() => {
-    console.log("Imported Tables:", importedTables);
-  }, [importedTables]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -153,6 +206,26 @@ export default function Tables() {
     }
     };
 
+    const xRule = currentRules?.xAxis || {};
+    const yRule = currentRules?.yAxis || {};
+
+    const maxX = xRule.max || 1;
+    const minX = xRule.min || 0;
+
+    const maxY = yRule.max || 1;
+    const minY = yRule.min || 0;
+
+    const allowedAggregations = currentRules?.allowedAggregations || [];
+
+    const handleDeleteTable=async (tableId)=>{
+      try{
+        await  dispatch(deleteTable(tableId));
+        dispatch(fetchImportedTables())
+      }catch(error){
+        console.log("error",error);
+      }
+      
+    }
     const renderTableData = () => {
     if (!tableRows || tableRows.length === 0) {
       return (
@@ -279,6 +352,7 @@ export default function Tables() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Database Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Rows</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Columns</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className={selectedforgraph ? "bg-gray-100 divide-y divide-gray-700" : "divide-y divide-slate-200"}>
@@ -326,6 +400,19 @@ export default function Tables() {
                     </td>
                     <td className="px-6 py-4 text-slate-600">{table.totalRowCount || 0}</td>
                     <td className="px-6 py-4 text-slate-600">{table.columnCount || 0}</td>
+                    <td className="px-6 py-4">
+                      <button
+                        type="button"
+
+                        onClick={(e) =>{ 
+                          e.stopPropagation();
+                          console.log("tableee",table);
+                          handleDeleteTable(table._id)}}
+                        className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm hover:bg-red-700"
+                      >
+                        Disconnect
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -356,170 +443,167 @@ export default function Tables() {
               </button>
             </div>
 
-            {/* Content - Scrollable Only Here */}
+            
             <div className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-5 gap-4">
-                {/* Left - Field Editors (Takes 3 columns) */}
-                <div className="col-span-3 pr-4 border-r-2 border-slate-300 max-h-full">
-                  <h4 className="font-bold text-slate-900 text-base mb-4 text-indigo-700">🏷️ Fields Configuration</h4>
-                  {/* Add New Field Input */}
-                  <div className="relative flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newFieldName}
-                      onChange={(e) => {
-                        setNewFieldName(e.target.value);
-                        setShowSuggestions(true);
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                      placeholder="Add new field"
-                      className={`flex-1 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        newFieldName && !isAddValid ? "border-red-500" : "border-slate-300"
-                      }`}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && isAddValid) {
-                          e.preventDefault();
-                          // reuse add button logic below
-                          const name = findMatchingField(newFieldName);
-                          if (name) {
-                            dispatch(addField(name));
-                            toast.success(`Field '${name}' added`);
-                            setNewFieldName("");
-                          }
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        const nameInput = newFieldName.trim();
-                        if (!nameInput) return;
-                        const matched = findMatchingField(nameInput);
-                        if (!matched) {
-                          toast.error("Field not available in this table");
-                          return;
-                        }
-                        if (alreadyAdded(matched)) {
-                          toast.error("Field already exists");
-                        } else {
-                          // additional validation: reject absurdly long names
-                          if (matched.length > 100) {
-                            toast.error("Field name too long");
-                            return;
-                          }
-                          dispatch(addField(matched));
-                          const t = detectFieldType(matched);
-                          if (t === "Unknown") {
-                            toast.warn(
-                              `Field '${matched}' added – type unknown, please verify.`
-                            );
-                          } else {
-                            toast.success(`Field '${matched}' added`);
-                          }
-                          setNewFieldName("");
-                        }
-                      }}
-                      disabled={!isAddValid}
-                      className={`px-3 py-1 rounded text-sm font-medium transition ${
-                        isAddValid
-                          ? "bg-indigo-500 text-white hover:bg-indigo-600"
-                          : "bg-slate-300 text-slate-500 cursor-not-allowed"
-                      }`}
-                    >
-                      Add
-                    </button>
+              
 
-                    {/* Suggestions dropdown */}
-                    {showSuggestions && (
-                      <div className="absolute top-full left-0 right-0 bg-white border border-slate-300 rounded mt-1 max-h-40 overflow-y-auto z-50">
-                        {availableFields
-                          .filter((f) => !alreadyAdded(f))
-                          .filter((f) =>
-                            newFieldName
-                              ? f.toLowerCase().includes(newFieldName.toLowerCase())
-                              : true
-                          )
-                          .length > 0 ? (
-                          availableFields
-                            .filter((f) => !alreadyAdded(f))
-                            .filter((f) =>
-                              newFieldName
-                                ? f.toLowerCase().includes(newFieldName.toLowerCase())
-                                : true
-                            )
-                            .map((opt) => (
-                              <div
-                                key={opt}
-                                onMouseDown={() => {
-                                  setNewFieldName(opt);
-                                  setShowSuggestions(false);
-                                }}
-                                className="px-2 py-1 hover:bg-indigo-50 cursor-pointer text-sm"
-                              >
-                                {opt}
-                              </div>
-                            ))
-                        ) : (
-                          <div className="px-2 py-1 text-sm text-slate-500 italic">
-                            No available fields
-                          </div>
-                        )}
-                      </div>
-                    )}
+              <div className="grid grid-cols-2 gap-6">
+              <div className="bg-slate-50 p-4 rounded-lg border">
+                <h3 className="font-bold text-lg mb-3">Chart Type</h3>
+
+                <ChartSuggestions
+                  fieldTypes={fieldTypes}
+                  onChartChange={(chart) => setChartSelected(chart)}
+                />
+
+                {chartSelected && (
+                  <div className="mt-3 text-sm text-green-600">
+                    Selected: <b>{chartSelected}</b>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border">
+
+                <h3 className="font-bold text-lg mb-4">
+                ⚙ Chart Configuration
+                </h3>
+
+                <div className="mb-4">
+                  <label className="font-medium">
+                    X Axis Fields ({xAxis.length}/{maxX})
+                  </label>
+
+                  <select
+                  onChange={(e)=>addXField(e.target.value)}
+                  className="w-full border px-3 py-2 rounded mt-1"
+                  >
+                  <option value="">Select Field</option>
+
+                  {getFieldsForAxis("x").map((f)=>(
+                  <option key={f}>{f}</option>
+                  ))}
+
+                  </select>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                  {xAxis.map((f)=>(
+                      <span
+                      key={f}
+                      className="px-2 py-1 bg-blue-100 rounded text-sm cursor-pointer"
+                      onClick={()=>removeXField(f)}
+                      >
+                    {f} ✕
+                    </span>
+                    ))}
+                  </div>
                   </div>
 
-                  {Object.keys(fieldTypes).length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {Object.keys(fieldTypes).map((fieldName) => (
-                        <div key={fieldName} className="flex-shrink-0">
-                          <FieldTypeEditor
-                            fieldName={fieldName}
-                            fieldType={fieldTypes[fieldName] || 'Unknown'}
-                            onRemove={(name) => {
-                              dispatch(removeField(name));
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-500 italic text-xs">No fields available.</p>
-                  )}
-                </div>
 
-                {/* Right - Chart Suggestions & Aggregations */}
-                <div className="col-span-2 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-indigo-200 max-h-full overflow-y-auto">
-                  <h4 className="font-bold text-slate-900 text-base mb-3 text-indigo-700">📈 Visualization</h4>
-                  <ChartSuggestions fieldTypes={fieldTypes} onChartChange={(c) => setChartSelected(c)} />
-                  {chartSelected && !chartValid && (
-                    <div className="mt-2 text-red-500 text-xs">
-                      Selected chart "{chartSelected}" is incompatible with your current field types.
+                  <div className="mb-4">
+                    <label className="font-medium">
+                    Y Axis Fields ({yAxis.length}/{maxY})
+                    </label>
+
+                    <select
+                    onChange={(e)=>addYField(e.target.value)}
+                    className="w-full border px-3 py-2 rounded mt-1"
+                    >
+                    <option value="">Select Field</option>
+
+                    {getFieldsForAxis("y").map((f)=>(
+                    <option key={f}>{f}</option>
+                    ))}
+
+                  </select>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                      {yAxis.map((f)=>(
+                      <span
+                      key={f}
+                      className="px-2 py-1 bg-green-100 rounded text-sm cursor-pointer"
+                      onClick={()=>removeYField(f)}
+                      >
+                      {f} ✕
+                    </span>
+                    ))}
+                  </div>
+                  </div>
+
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+
+                    <div>
+                      <label className="text-sm font-medium">X Label</label>
+                      <input
+                      value={xLabel}
+                      onChange={(e)=>setXLabel(e.target.value)}
+                      className="w-full border px-3 py-2 rounded"
+                      />
+                      </div>
+
+                      <div>
+                      <label className="text-sm font-medium">Y Label</label>
+                      <input
+                      value={yLabel}
+                      onChange={(e)=>setYLabel(e.target.value)}
+                      className="w-full border px-3 py-2 rounded"
+                      />
                     </div>
+
+                  </div>
+
+                  {currentRules.aggregationRequired && (
+                  <div>
+                    <div>
+                  <label className="text-sm font-medium">
+                  Aggregation
+                  </label>
+
+                      <select
+                      value={aggregation}
+                      onChange={(e)=>setAggregation(e.target.value)}
+                      className="w-full border px-3 py-2 rounded mt-1"
+                      >
+                  {allowedAggregations.map((agg)=>(
+                        <option key={agg} value={agg}>
+                        {agg}
+                        </option>
+                        ))}
+                        </select>
+                        </div>
+                  </div> 
                   )}
-                  
-                </div>
+                    </div>
+            </div>
+              <div>
+              
               </div>
             </div>
-            {/* Footer - actions */}
+            
             <div className="flex-shrink-0 border-t px-4 py-3 flex justify-end gap-3 bg-white">
               <button
                 type="button"
                 disabled={!(Object.keys(fieldTypes).length > 0 && chartSelected && chartValid)}
                 onClick={() => {
-                  // minimal graph creation action; payload can be enhanced later
                   const payload = {
+                    userId:user._id,
                     id: Date.now(),
                     tableId: CurrentSelectedTable?._id,
+                    xAxis:xAxis,
+                    yAxis:yAxis,
+                    xLabel:xLabel,
+                    yLabel:yLabel,
+                    aggregation:aggregation,
                     fields: Object.keys(fieldTypes),
                     chart: chartSelected,
                   };
 
-                  console.log("Payload for new graph:", payload);
-                  dispatch(addnewGraph(payload));
-                  toast.success("Graph configuration saved");
-                  // optionally close popup
-                  setShowGraphPopup(false);
-                }}
+                 dispatch(saveGraph(payload));
+                    toast.success("Graph configuration saved");
+                    setShowGraphPopup(false);
+                 }}
+                
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   Object.keys(fieldTypes).length > 0 && chartSelected
                     ? "bg-green-600 text-white hover:bg-green-700"

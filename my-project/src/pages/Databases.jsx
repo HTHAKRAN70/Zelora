@@ -7,6 +7,7 @@ import {
   updateConnectionName,
   fetchTables,
   importTable,
+  deleteconnection,
   importAPITable,
 } from "../store/dbSlice.js";
 import { setSelectedConnection, clearTablesFromDb } from "../store/dbSlice.js";
@@ -23,7 +24,7 @@ const DB_TYPES = [
 const getDefaultCredentials = (dbType) => {
   switch (dbType) {
     case "mongodb":
-      return { host: "", port: 27017, database: "", user: "", password: "", uri: "" };
+      return { host: "", port: 27017, database: "", uri: "" };
     case "mysql":
       return { host: "", port: 3306, user: "", password: "", database: "" };
     case "postgresql":
@@ -41,12 +42,16 @@ export default function Databases() {
   const [connectionName, setConnectionName] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const {user}=useSelector((state)=>state.auth);
   const dispatch = useDispatch();
   const { connections, loading: connectionsLoading } = useSelector((state) => state.db);
 
   useEffect(() => {
     dispatch(fetchConnections());
   }, [dispatch]);
+  // useEffect(()=>{
+  //   console.log("connections",connections);
+  // },connections);
 
   useEffect(() => {
     console.log("Selected DB Type:", selectedDbType);
@@ -87,7 +92,7 @@ export default function Databases() {
   const handleConnect = async () => {
     setLoading(true);
     try {
-      // console.log("Attempting to save connection with data:", { dbType: selectedDbType, credentials, connectionName });
+      console.log("Attempting to save connection with data:", { dbType: selectedDbType, credentials, connectionName });
       await dispatch(saveConnection({ dbType: selectedDbType, credentials, connectionName })).unwrap();
       toast.success("Connection saved successfully!");
       setCredentials(getDefaultCredentials(selectedDbType));
@@ -134,6 +139,14 @@ export default function Databases() {
     }
   };
   
+  const handleDeleteConnection= async(conn)=>{
+     const connectionId=conn._id;
+     console.log("cpnnection Id",connectionId);
+   await dispatch(deleteconnection(connectionId)).unwrap();
+    dispatch(fetchConnections());
+  }
+
+
   const renderCredentialFields = () => {
     switch (selectedDbType) {
       case "mongodb":
@@ -181,7 +194,7 @@ export default function Databases() {
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            {/* <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Username (optional)</label>
                 <input
@@ -202,7 +215,7 @@ export default function Databases() {
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-            </div>
+            </div> */}
           </>
         );
       case "mysql":
@@ -405,7 +418,8 @@ export default function Databases() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Connection Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Database Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Import</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Disconnect</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -450,6 +464,15 @@ export default function Databases() {
                         className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
                       >
                          Import Tables
+                      </button>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteConnection(conn)}
+                        className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm hover:bg-red-700"
+                      >
+                        Disconnect
                       </button>
                     </td>
                   </tr>

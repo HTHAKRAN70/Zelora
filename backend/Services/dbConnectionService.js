@@ -326,7 +326,6 @@ export async function importTableData(dbType, credentials, tableName, selectedFi
   }
 }
 
-// new function: fetch paginated/windowed data from a source
 export async function getTableRowsWithPagination(
   dbType,
   credentials,
@@ -349,10 +348,15 @@ export async function getTableRowsWithPagination(
         });
         const fieldsStr =
           selectedFields.length > 0 ? selectedFields.join(", ") : "*";
-        const [rows] = await mysqlConn.execute(
-          `SELECT ${fieldsStr} FROM ${tableName} LIMIT ? OFFSET ?`,
-          [pageSize, skip]
-        );
+          // console.log("fieldStr",fieldsStr);
+          const limit = Number(pageSize);
+          const offset = Number(skip);
+
+          console.log("page",page,pageSize,skip);
+          const [rows] = await mysqlConn.query(
+              `SELECT ${fieldsStr} FROM ${tableName} LIMIT ${pageSize} OFFSET ${skip}`
+            );
+        console.log("rows",rows);
         await mysqlConn.end();
         return { success: true, data: rows };
       }
@@ -467,6 +471,7 @@ export async function getTableRowsWithPagination(
         throw new Error("Unsupported database type");
     }
   } catch (error) {
+    console.log("error",error);
     return { success: false, error: error.message };
   }
 }

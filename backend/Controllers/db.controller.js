@@ -20,7 +20,7 @@ export const testDbConnection = async (req, res) => {
 
 export const saveConnection = async (req, res) => {
   try {
-    console.log("Saving DB connection with data:", req.body,req.userId);
+    console.log("Saving DB connection with data:", req);
     const { dbType, credentials, connectionName } = req.body;
     const userId = req.userId;
     // con
@@ -148,7 +148,7 @@ export const importTable = async (req, res) => {
   try {
     const { connectionId, tableName, selectedFields, displayName } = req.body;
     const userId = req.userId;
-    console.log("Importing table metadata:", req.body);
+    // console.log("Importing table metadata:", req.body);
 
     const connection = await DBConnection.findOne({ _id: connectionId, userId });
     if (!connection) {
@@ -157,6 +157,7 @@ export const importTable = async (req, res) => {
 
     const result = await importTableData(connection.dbtype, connection.credentials, tableName, selectedFields || []);
     if (!result.success) {
+      console.log("not success",result.error);
       return res.status(400).json({ success: false, message: result.error });
     }
 
@@ -171,13 +172,12 @@ export const importTable = async (req, res) => {
       columnCount: result.columnCount,
     });
     await table.save();
-    
+    console.log("table",table);
     res.json({ success: true, table });
   } catch (error) {
     console.log("error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
-  
 };
 
 export const getImportedTables = async (req, res) => {
@@ -213,10 +213,10 @@ export const getTableData = async (req, res) => {
 
 export const getTableRows = async (req, res) => {
   try {
+    
     const { tableId } = req.params;
     const { page = 1, pageSize = 10 } = req.query;
     const userId = req.userId;
-
     const table = await Table.findOne({ _id: tableId, userId }).populate(
       "connectionId",
       "dbtype credentials"
@@ -228,7 +228,7 @@ export const getTableRows = async (req, res) => {
     const { getTableRowsWithPagination } = await import(
       "../Services/dbConnectionService.js"
     );
-
+    // console.log("table credentials",table);
     const result = await getTableRowsWithPagination(
       table.databaseType,
       table.connectionId.credentials,
@@ -237,6 +237,7 @@ export const getTableRows = async (req, res) => {
       parseInt(page),
       parseInt(pageSize)
     );
+    // console.log("result",result);
 
     if (!result.success) {
       return res
@@ -280,19 +281,33 @@ export const updateTableName = async (req, res) => {
 
 export const deleteConnection = async (req, res) => {
   try {
-    const { connectionId } = req.params;
-    const userId = req.userId;
+    const { connectionId } = req.body;
 
-    const connection = await DBConnection.findOne({ _id: connectionId, userId });
-    if (!connection) {
+    const result = await DBConnection.deleteOne({ _id: connectionId });
+
+    if (result.deletedCount === 0) {
       return res.status(404).json({ success: false, message: "Connection not found" });
     }
 
-    connection.isActive = false;
-    await connection.save();
-
-    res.json({ success: true, message: "Connection deleted" });
+    res.json({ success: true, connectionId });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const deleteTable =async(req,res)=>{
+  try{
+    const {tableId}=req.params
+    console.log("tableId------",tableId);
+    const result=await Table.deleteOne({_id:tableId});
+    if(result.deletedCount===0){
+      return res.status(404).json({success:false,message:"Table not found"});
+    }
+    res.json({success:true,tableId});
+
+  }catch(error){
+    console.log("ererrrror",error);
+    res.status(500).json({success:false,message:error.message});
+
+  }
+}

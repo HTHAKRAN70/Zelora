@@ -35,6 +35,8 @@ export const importTable = createAsyncThunk("db/importTable", async (data) => {
  let res;
   try{
     res = await api.post("/db/import", data);
+
+    console.log("res=data",res);
  }catch(error){
   console.log("error while importing table",error);
  }
@@ -65,6 +67,19 @@ export const updateTableName = createAsyncThunk("db/updateTableName", async ({ t
   const res = await api.put(`/db/table/${tableId}/name`, { displayName });
   return res.data;
 });
+export const deleteconnection = createAsyncThunk(
+  "db/deleteConnection",
+  async (connectionId) => {
+    const res = await api.delete(`/db/connections/delete`, {
+      data: { connectionId },
+    });
+    return res.data;
+  }
+);
+export const deleteTable=createAsyncThunk("db/deleteTable",async(tableId)=>{
+  const res=await api.delete(`/db/table/delete/${tableId}`);
+  return res.data;
+})
 
 const dbSlice = createSlice({
   name: "db",
@@ -111,6 +126,7 @@ const dbSlice = createSlice({
       .addCase(fetchConnections.pending, (state) => {
         state.loading = true;
       })
+      
       .addCase(fetchConnections.fulfilled, (state, action) => {
         state.loading = false;
         state.connections = action.payload.connections || [];
@@ -118,6 +134,20 @@ const dbSlice = createSlice({
       .addCase(fetchConnections.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message;
+      })
+      .addCase(deleteTable.fulfilled,(state,action)=>{
+        console.log("actions",action.payload);
+        console.log("state",state);
+        state.importedTables=state.importedTables.filter(
+          (table)=>{
+            console.log("table",table);
+            table._id!==action.payload.tableId}
+        );
+      })
+      .addCase(deleteconnection.fulfilled,(state,action)=>{
+        state.connections = state.connections.filter(
+        (conn) => conn._id !== action.payload.connectionId
+      );
       })
       .addCase(saveConnection.fulfilled, (state, action) => {
         state.connections.push(action.payload.connection);

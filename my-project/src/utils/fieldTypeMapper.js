@@ -6,6 +6,7 @@ const FIELD_TYPE_PATTERNS = {
     'department', 'brand', 'model', 'size', 'color', 'grade', 'level',
     'priority', 'class', 'group', 'tag', 'label', 'kind', 'variant',
     'language', 'currency', 'status_label', 'reason', 'cause', 'purpose',
+    'product_category'
   ],
   
   NUMERICAL: [
@@ -14,7 +15,8 @@ const FIELD_TYPE_PATTERNS = {
     'distance', 'length', 'width', 'height', 'weight', 'volume',
     'revenue', 'sales', 'profit', 'loss', 'percentage', 'ratio',
     'rating', 'score', 'points', 'value', 'number', 'id', 'code',
-    'phone', 'zip_code', 'postal_code', 'temperature', 'humidity',
+    'phone', 'zip_code', 'postal_code', 'temperature', 'humidity','order_id','customer_age'
+    ,'customer_id'
   ],
   
   // Temporal/Date fields
@@ -22,7 +24,7 @@ const FIELD_TYPE_PATTERNS = {
     'date', 'time', 'datetime', 'created_at', 'updated_at', 'deleted_at',
     'start_date', 'end_date', 'birth_date', 'due_date', 'release_date',
     'joined_date', 'published_date', 'modified_date', 'timestamp',
-    'start_time', 'end_time', 'scheduled_at', 'expired_at',
+    'start_time', 'end_time', 'scheduled_at', 'expired_at','order_date',
   ],
   
   // Boolean/Binary fields
@@ -101,3 +103,4 @@ export function getSuggestedGraphTypes(fieldType) {
   
   return suggestions[fieldType] || suggestions[FIELD_TYPES.UNKNOWN];
 }
+// export function get
