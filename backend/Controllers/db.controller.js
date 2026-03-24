@@ -1,5 +1,6 @@
 import DBConnection from "../Models/Database.js";
 import Table from "../Models/Tables.js";
+import Graph from "../Models/Graph.js";
 import { testConnection, getTables, importTableData } from "../Services/dbConnectionService.js";
 
 export const testDbConnection = async (req, res) => {
@@ -282,14 +283,18 @@ export const updateTableName = async (req, res) => {
 export const deleteConnection = async (req, res) => {
   try {
     const { connectionId } = req.body;
+    const tables = await Table.find({ connectionId });
+    const deletedTableIds = tables.map((t) => t._id.toString());
 
-    const result = await DBConnection.deleteOne({ _id: connectionId });
-
+    await Graph.deleteMany({ tableId: { $in: deletedTableIds } });
+    await Table.deleteMany({ connectionId });
+    const result =await DBConnection.findOneAndDelete({ _id: connectionId });
+   
     if (result.deletedCount === 0) {
       return res.status(404).json({ success: false, message: "Connection not found" });
     }
 
-    res.json({ success: true, connectionId });
+    res.json({ success: true, connectionId,deletedTableIds });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -299,6 +304,7 @@ export const deleteTable =async(req,res)=>{
   try{
     const {tableId}=req.params
     console.log("tableId------",tableId);
+    await Graph.deleteMany({tableId});
     const result=await Table.deleteOne({_id:tableId});
     if(result.deletedCount===0){
       return res.status(404).json({success:false,message:"Table not found"});

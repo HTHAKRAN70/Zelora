@@ -308,3 +308,20 @@ function buildChartData(data, config) {
     datasets
   };
 }
+
+export const deleteGraph=async(req,res,next)=>{
+  try{
+    const {graphId}=req.params;
+    const result=await Graph.deleteOne({_id:graphId});
+    if(result.deletedCount===0){
+      console.log("asdfasdfdsfsdf",graphId);
+      res.status(404).json({success:false,message:"Graph not found"});
+    }
+    res.json({success:true,message:"graph deleted successfully"})
+
+  }catch(error){
+    console.log("error",error);
+    res.status(500).json({success:false,message:"Internal Server Error"});
+
+  }
+}

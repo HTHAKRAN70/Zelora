@@ -7,6 +7,7 @@ const graphSchema = new mongoose.Schema(
       ref: "now Table",
       required: true,
     },
+    
     userId:{
       type:mongoose.Schema.Types.ObjectId,
       ref:"User",
@@ -42,7 +43,7 @@ const graphSchema = new mongoose.Schema(
 
     aggregation: {
       type: String,
-      enum: ["sum", "avg", "count", "min", "max"],
+      enum: ["sum", "average", "count", "min", "max"],
       default: null,
     },
     createdBy: {

@@ -30,16 +30,10 @@ Chart.register(
   Legend,
   Filler
 );
-import { fetchAllGraphs } from "../store/graphSlice.js";
+
+import { fetchAllGraphs, deleteGraph } from "../store/graphSlice.js";
 import api from "../services/api.js";
 
-// Chart.register(
-//   BarElement, LineElement, PointElement,
-//   CategoryScale, LinearScale,
-//   Tooltip, Legend, Filler
-// );
-
-/* ───────────────────────── constants ───────────────────────── */
 const COLORS = [
   { bg: "rgba(99,210,255,0.72)",  border: "rgba(99,210,255,1)",  light: "rgba(99,210,255,0.10)",  hex: "#63d2ff"  },
   { bg: "rgba(255,167,92,0.72)",  border: "rgba(255,167,92,1)",  light: "rgba(255,167,92,0.10)",  hex: "#ffa75c"  },
@@ -62,7 +56,8 @@ const TYPE_META = {
   Pie:  { color: "#34d399", bg: "rgba(52,211,153,0.10)",  border: "rgba(52,211,153,0.22)"  },
 };
 
-/* ───────────────────────── icons ───────────────────────── */
+
+
 const I = {
   Bar: () => (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-[15px] h-[15px]">
@@ -100,13 +95,15 @@ const I = {
       <rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 16l3-4 3 3 2-2 2 2"/>
     </svg>
   ),
+  Trash: () => (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className="w-[13px] h-[13px]">
+      <path d="M3 5h14M8 5V3h4v2M6 5l1 12h6l1-12"/>
+    </svg>
+  ),
 };
 
-/* ───────────────────────── chart config builder ───────────────────────── */
-// chartData = { labels: [...], datasets: [{ label, data: [...] }, ...] }
 function buildConfig(graph, chartData) {
   const type = (graph.chartType || "Bar").toLowerCase();
-
   const datasets = chartData.datasets.map((ds, i) => {
     const c = COLORS[i % COLORS.length];
     const isLine = type === "line";
@@ -183,77 +180,31 @@ function buildConfig(graph, chartData) {
   };
 }
 
-/* ───────────────────────── sub-components ───────────────────────── */
-// function ChartCanvas({ graph, chartData }) {
-//   const ref      = useRef(null);
-//   const chartRef = useRef(null);
-//   useEffect(() => {
-//     if (!ref.current || !chartData) return;
-//     chartRef.current?.destroy();
-//     chartRef.current = new Chart(ref.current, buildConfig(graph, chartData));
-//     return () => chartRef.current?.destroy();
-//   }, [chartData, graph]);
-//   return <canvas ref={ref} />;
-// }
-
-// function ChartCanvas({ graph, chartData }) {
-//   const ref = useRef(null);
-//   const chartRef = useRef(null);
-
-//   useEffect(() => {
-//     if (!ref.current || !chartData) return;
-
-//     // 🔥 DESTROY previous chart properly
-//     if (chartRef.current) {
-//       chartRef.current.destroy();
-//       chartRef.current = null;
-//     }
-
-//     // 🔥 CREATE new chart
-//     chartRef.current = new Chart(ref.current, buildConfig(graph, chartData));
-
-//     return () => {
-//       if (chartRef.current) {
-//         chartRef.current.destroy();
-//         chartRef.current = null;
-//       }
-//     };
-//   }, [chartData, graph]);
-
-//   return <canvas ref={ref} />;
-// }
-
 function ChartCanvas({ graph, chartData }) {
   const ref = useRef(null);
 
   useEffect(() => {
     if (!ref.current || !chartData) return;
-const existing = Chart.getChart(ref.current);
-    if (existing) {
-      existing.destroy();
-    }
-
+    const existing = Chart.getChart(ref.current);
+    if (existing) existing.destroy();
     const chart = new Chart(ref.current, buildConfig(graph, chartData));
-
-    return () => {
-      chart.destroy();
-    };
+    return () => { chart.destroy(); };
   }, [chartData, graph]);
 
   return <canvas ref={ref} />;
 }
+
+
 function Tag({ children, style }) {
   return (
-    <span
-      className="px-2 py-0.5 rounded-md text-[10px] font-mono border"
-      style={style}
-    >
+    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono border" style={style}>
       {children}
     </span>
   );
 }
 
-function GraphCard({ graph, isSelected, isLoading, onClick }) {
+
+function GraphCard({ graph, isSelected, isLoading, isDeleting, onClick, onDelete }) {
   const tm  = TYPE_META[graph.chartType] || TYPE_META.Bar;
   const agg = AGG_META[(graph.aggregation || "sum").toLowerCase()] || AGG_META.sum;
   const ChartIcon = I[graph.chartType] || I.Bar;
@@ -261,23 +212,51 @@ function GraphCard({ graph, isSelected, isLoading, onClick }) {
   return (
     <button
       onClick={onClick}
-      disabled={isLoading && !isSelected}
+      disabled={(isLoading && !isSelected) || isDeleting}
       className="group relative w-full text-left flex flex-col gap-3 p-4 rounded-xl border transition-all duration-200 overflow-hidden"
       style={{
         background: isSelected ? "rgba(15,23,42,0.9)" : "rgba(10,16,32,0.7)",
         borderColor: isSelected ? tm.color : "rgba(51,65,85,0.5)",
         boxShadow: isSelected ? `0 0 0 1px ${tm.border}, 0 8px 28px rgba(0,0,0,0.35)` : "none",
+        opacity: isDeleting ? 0.45 : 1,
+        transition: "opacity 0.2s, border-color 0.2s, box-shadow 0.2s",
       }}
       onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "rgba(100,116,139,0.55)"; }}
       onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "rgba(51,65,85,0.5)"; }}
     >
       {/* selected accent bar */}
       {isSelected && (
-        <span className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: `linear-gradient(to bottom, ${tm.color}, transparent)` }} />
+        <span
+          className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
+          style={{ background: `linear-gradient(to bottom, ${tm.color}, transparent)` }}
+        />
       )}
 
+      {/* ── DELETE BUTTON (top-right corner) ─────────────────────────────── */}
+      <span
+        role="button"
+        aria-label="Delete graph"
+        onClick={(e) => {
+          e.stopPropagation(); // prevent card click / panel open
+          onDelete();
+        }}
+        className="absolute top-2.5 right-2.5 z-10 flex items-center justify-center w-6 h-6 rounded-md border
+                   opacity-0 group-hover:opacity-100 transition-all duration-150
+                   text-red-400 hover:text-red-200 hover:bg-red-500/20"
+        style={{
+          borderColor: "rgba(239,68,68,0.25)",
+          background: "rgba(239,68,68,0.07)",
+          cursor: isDeleting ? "not-allowed" : "pointer",
+        }}
+      >
+        {isDeleting
+          ? <span className="w-3 h-3 rounded-full border-2 border-red-700 border-t-red-400 animate-spin" />
+          : <I.Trash />
+        }
+      </span>
+
       {/* row 1 — type badge + spinner/dot */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pr-6">
         <span
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border"
           style={{ color: tm.color, background: tm.bg, borderColor: tm.border }}
@@ -322,6 +301,10 @@ function GraphCard({ graph, isSelected, isLoading, onClick }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LOADING BARS
+// ─────────────────────────────────────────────────────────────────────────────
+
 function LoadingBars() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-5">
@@ -342,7 +325,6 @@ function LoadingBars() {
     </div>
   );
 }
-
 function DatasetSummary({ chartData }) {
   if (!chartData?.datasets?.length) return null;
   return (
@@ -380,7 +362,6 @@ function ChartPanel({ graph, chartData, loading, error, onClose }) {
 
   return (
     <>
-      {/* header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center border" style={{ color: tm.color, background: tm.bg, borderColor: tm.border }}>
@@ -403,7 +384,6 @@ function ChartPanel({ graph, chartData, loading, error, onClose }) {
         </button>
       </div>
 
-      {/* meta row */}
       <div className="flex flex-wrap gap-3 px-6 py-3 border-b border-slate-800/70 shrink-0">
         {[{ label: "X Axis", items: graph.xAxis || [], col: "#38bdf8" },
           { label: "Y Axis", items: graph.yAxis || [], col: "#fbbf24" }].map(({ label, items, col }) => (
@@ -428,7 +408,6 @@ function ChartPanel({ graph, chartData, loading, error, onClose }) {
         </div>
       </div>
 
-      {/* chart body */}
       <div className="flex-1 px-6 py-5 min-h-0">
         {loading && <LoadingBars />}
         {!loading && error && (
@@ -449,17 +428,17 @@ function ChartPanel({ graph, chartData, loading, error, onClose }) {
         )}
       </div>
 
-      {/* dataset summary cards */}
       {!loading && !error && chartData && <DatasetSummary chartData={chartData} />}
     </>
   );
 }
 
-/* ───────────────────────── MAIN DASHBOARD ───────────────────────── */
+
 export default function Graph() {
   const dispatch = useDispatch();
-  const { Allgraphs: graphs } = useSelector((s) => s.graph);
-  const {user}=useSelector((state)=>state.auth);
+  const { Allgraphs: graphs, deletingId } = useSelector((s) => s.graph);
+  const { user } = useSelector((state) => state.auth);
+
   const [selectedGraph, setSelectedGraph] = useState(null);
   const [chartData,     setChartData]     = useState(null);
   const [loadingId,     setLoadingId]     = useState(null);
@@ -468,9 +447,8 @@ export default function Graph() {
   const [filter,        setFilter]        = useState("All");
   const [panelOpen,     setPanelOpen]     = useState(false);
 
-  const temp ={
-    userId:user._id
-  }
+  const temp = { userId: user._id };
+
   useEffect(() => {
     setFetching(true);
     dispatch(fetchAllGraphs(temp)).finally(() => setFetching(false));
@@ -486,7 +464,6 @@ export default function Graph() {
     setLoadingId(graph._id);
 
     try {
-      // POST /graph/create  →  { success, chartData: { labels, datasets } }
       const res  = await api.post("/graph/create", { graphId: graph._id });
       const data = res.data?.chartData;
       if (!data) throw new Error("No chartData in response.");
@@ -498,6 +475,19 @@ export default function Graph() {
     }
   }, [loadingId]);
 
+  const handleDelete = useCallback(async (graph) => {
+    
+    if (selectedGraph?._id === graph._id) {
+      setPanelOpen(false);
+      setTimeout(() => {
+        setSelectedGraph(null);
+        setChartData(null);
+        setError(null);
+      }, 320);
+    }
+    dispatch(deleteGraph(graph._id));
+  }, [dispatch, selectedGraph]);
+
   const handleClose = () => {
     setPanelOpen(false);
     setTimeout(() => {
@@ -507,9 +497,10 @@ export default function Graph() {
     }, 320);
   };
 
-  const chartTypes = ["All", ...new Set((graphs || []).map((g) => g.chartType).filter(Boolean))];
-  const filtered   = filter === "All" ? (graphs || []) : (graphs || []).filter((g) => g.chartType === filter);
-
+  const chartTypes = ["All", ...new Set((graphs || []).filter(Boolean).map((g) => g.chartType).filter(Boolean))];
+    const filtered   = filter === "All" 
+      ? (graphs || []).filter(Boolean) 
+      : (graphs || []).filter(Boolean).filter((g) => g.chartType === filter);
   return (
     <>
       <style>{`
@@ -519,20 +510,14 @@ export default function Graph() {
         .gd-scroll::-webkit-scrollbar-track { background:transparent; }
         .gd-scroll::-webkit-scrollbar-thumb { background:rgba(148,163,184,.12); border-radius:4px; }
       `}</style>
-
       <div className="flex h-screen w-full overflow-hidden" style={{ background: "#060c1a", color: "#cbd5e1", fontFamily: "'DM Mono', monospace" }}>
-
-        {/* ── Sidebar ── */}
         <aside className="w-52 shrink-0 flex flex-col" style={{ background: "rgba(10,16,32,0.7)", borderRight: "1px solid rgba(30,41,59,0.8)" }}>
-          {/* brand */}
           <div className="flex items-center gap-2.5 px-5 py-5" style={{ borderBottom: "1px solid rgba(30,41,59,0.8)" }}>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(56,189,248,0.1)", border: "1px solid rgba(56,189,248,0.22)", color: "#38bdf8" }}>
               <I.Bar />
             </div>
             <span className="text-[13px] font-bold text-slate-100" style={{ fontFamily: "sans-serif", letterSpacing: "-0.3px" }}>DataViz</span>
           </div>
-
-          {/* nav links */}
           <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto gd-scroll">
             <p className="text-[9px] uppercase tracking-widest text-slate-700 px-2 pb-2 pt-1">Charts</p>
             {chartTypes.map((t) => {
@@ -611,7 +596,9 @@ export default function Graph() {
                     graph={g}
                     isSelected={selectedGraph?._id === g._id}
                     isLoading={loadingId === g._id}
+                    isDeleting={deletingId === g._id}
                     onClick={() => handleCardClick(g)}
+                    onDelete={() => handleDelete(g)}
                   />
                 ))}
               </div>

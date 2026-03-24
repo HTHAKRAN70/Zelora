@@ -9,7 +9,7 @@ export default function RootLayout() {
       <Navbar />
       <div className="flex flex-1 min-h-0">
         <SideBar />
-        <main className="flex-1  overflow-auto  md:p-6 lg:p-1">
+        <main className="flex-1  overflow-auto  md:p-2 lg:p-1">
           <Outlet />
         </main>
       </div>

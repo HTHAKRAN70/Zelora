@@ -136,18 +136,19 @@ const dbSlice = createSlice({
         state.error = action.error.message;
       })
       .addCase(deleteTable.fulfilled,(state,action)=>{
-        console.log("actions",action.payload);
-        console.log("state",state);
         state.importedTables=state.importedTables.filter(
           (table)=>{
-            console.log("table",table);
             table._id!==action.payload.tableId}
         );
       })
       .addCase(deleteconnection.fulfilled,(state,action)=>{
+       const { connectionId } = action.payload;
         state.connections = state.connections.filter(
-        (conn) => conn._id !== action.payload.connectionId
-      );
+          (conn) => conn._id !== connectionId
+        );
+        state.importedTables = state.importedTables.filter(
+          (table) => table.connectionId !== connectionId
+        );
       })
       .addCase(saveConnection.fulfilled, (state, action) => {
         state.connections.push(action.payload.connection);
