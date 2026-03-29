@@ -1,29 +1,21 @@
 import { useState, useMemo, useEffect } from "react";
-import { getSuggestedGraphTypes, FIELD_TYPES } from "../utils/fieldTypeMapper.js";4
+import { getSuggestedGraphTypes, FIELD_TYPES } from "../utils/fieldTypeMapper.js";
 import {setChartType} from "../store/graphSlice.js";
 import { useDispatch,useSelector } from "react-redux";
 const CHART_AGGREGATIONS = {
   "Bar ": ["Count", "Sum", "Average", "Min", "Max"],
   "Pie ": ["Count", "Sum", "Average", "Percentage"],
-  "Donut ": ["Count", "Sum", "Average", "Percentage"],
+  "Doughnut ": ["Count", "Sum", "Average", "Percentage"],
   "Line": ["Sum", "Average", "Count", "Min", "Max"],
   "Area": ["Sum", "Average", "Count"],
   "Scatter": ["Count", "Sum", "Average"],
   "Histogram": ["Count", "Average", "Min", "Max"],
-  "Box": ["Min", "Max", "Average", "Median", "Std Dev"],
-  "Count": ["Count", "Distinct Count"],
-  "Timeline": ["Count", "Min", "Max"],
-  "Word": ["Count", "Distinct Count"],
-  "Tag": ["Count", "Distinct Count"],
-  "Map": ["Count"],
-  "Geo Chart": ["Count", "Average", "Sum"],
 };
 const allCharts = Object.keys(CHART_AGGREGATIONS);
 
-const SINGLE_AGG_CHARTS = ["Pie ", "Donut ", "Word ", "Tag ", "Map"];
+const SINGLE_AGG_CHARTS = ["Pie ", "Doughnut ", "Word ", "Tag ", "Map"];
 
-// Charts that allow multiple aggregation functions
-const MULTI_AGG_CHARTS = ["Bar ", "Line", "Area", "Scatter", "Histogram", "Box", "Timeline", "Geo Chart", "Count"];
+// const MULTI_AGG_CHARTS = ["Bar ", "Line", "Area", "Scatter", "Histogram", "Box", "Timeline", "Geo Chart", "Count"];
 
 const ALL_AGGREGATIONS = [
   { name: "Sum", description: "Total of all values" },
@@ -40,9 +32,8 @@ const ALL_AGGREGATIONS = [
 
 export default function ChartSuggestions({ fieldTypes = {}, onChartChange = () => {} }) {
   const [selectedChart, setSelectedChart] = useState(null);
-  // memoize derived arrays so effects don't run every render
   const fieldNames = useMemo(() => Object.keys(fieldTypes), [fieldTypes]);
-const dispatch = useDispatch();
+  const dispatch = useDispatch();
   useEffect(() => {
     if (fieldNames.length === 0) {
       setSelectedChart(null);
@@ -53,25 +44,23 @@ const dispatch = useDispatch();
     try {
       onChartChange(selectedChart);
     } catch (e) {
-      // ignore if parent callback throws
     }
   }, [selectedChart, onChartChange]);
 
-  // Get suggested charts based on all fields
-  const suggestedCharts = useMemo(() => {
-    if (fieldNames.length === 0) return [];
 
-    const uniqueCharts = new Set();
-    fieldNames.forEach((fieldName) => {
-      const fieldType = fieldTypes[fieldName];
-      const charts = getSuggestedGraphTypes(fieldType);
-      charts.forEach((chart) => uniqueCharts.add(chart));
-    });
+  // const suggestedCharts = useMemo(() => {
+  //   if (fieldNames.length === 0) return [];
 
-    return Array.from(uniqueCharts).sort();
-  }, [fieldNames, fieldTypes]);
+  //   const uniqueCharts = new Set();
+  //   fieldNames.forEach((fieldName) => {
+  //     const fieldType = fieldTypes[fieldName];
+  //     const charts = getSuggestedGraphTypes(fieldType);
+  //     charts.forEach((chart) => uniqueCharts.add(chart));
+  //   });
 
-  // available numeric fields to drive aggregation
+  //   return Array.from(uniqueCharts).sort();
+  // }, [fieldNames, fieldTypes]);
+
   const numericFields = useMemo(
     () =>
       fieldNames.filter(
@@ -124,28 +113,23 @@ const dispatch = useDispatch();
   }, [selectedChart]);
 
 
-  const allowsSingleAggOnly = SINGLE_AGG_CHARTS.includes(selectedChart);
+  // const allowsSingleAggOnly = SINGLE_AGG_CHARTS.includes(selectedChart);
 
-  const toggleAggregation = (aggName) => {
-    setSelectedAggs((prev) => {
-      const exists = prev.find((a) => a.name === aggName);
-      if (exists) {
-        return prev.filter((a) => a.name !== aggName);
-      } else {
-        if (allowsSingleAggOnly) {
-          return [{ name: aggName, field: numericFields[0] || "" }];
-        } else {
-          return [...prev, { name: aggName, field: numericFields[0] || "" }];
-        }
-      }
-    });
-  };
+  // const toggleAggregation = (aggName) => {
+  //   setSelectedAggs((prev) => {
+  //     const exists = prev.find((a) => a.name === aggName);
+  //     if (exists) {
+  //       return prev.filter((a) => a.name !== aggName);
+  //     } else {
+  //       if (allowsSingleAggOnly) {
+  //         return [{ name: aggName, field: numericFields[0] || "" }];
+  //       } else {
+  //         return [...prev, { name: aggName, field: numericFields[0] || "" }];
+  //       }
+  //     }
+  //   });
+  // };
 
-  const updateAggField = (aggName, field) => {
-    setSelectedAggs((prev) =>
-      prev.map((a) => (a.name === aggName ? { ...a, field } : a))
-    );
-  };
 
   const handlechartClick = (chart) => {;
     if (selectedChart === chart) {

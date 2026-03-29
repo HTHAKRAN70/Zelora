@@ -303,7 +303,6 @@ export const deleteConnection = async (req, res) => {
 export const deleteTable =async(req,res)=>{
   try{
     const {tableId}=req.params
-    console.log("tableId------",tableId);
     await Graph.deleteMany({tableId});
     const result=await Table.deleteOne({_id:tableId});
     if(result.deletedCount===0){
@@ -312,7 +311,6 @@ export const deleteTable =async(req,res)=>{
     res.json({success:true,tableId});
 
   }catch(error){
-    console.log("ererrrror",error);
     res.status(500).json({success:false,message:error.message});
 
   }

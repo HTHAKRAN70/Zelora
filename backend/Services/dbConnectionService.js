@@ -352,11 +352,11 @@ export async function getTableRowsWithPagination(
           const limit = Number(pageSize);
           const offset = Number(skip);
 
-          console.log("page",page,pageSize,skip);
+          // console.log("page",page,pageSize,skip);
           const [rows] = await mysqlConn.query(
               `SELECT ${fieldsStr} FROM ${tableName} LIMIT ${pageSize} OFFSET ${skip}`
             );
-        console.log("rows",rows);
+        // console.log("rows",rows);
         await mysqlConn.end();
         return { success: true, data: rows };
       }
