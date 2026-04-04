@@ -422,12 +422,6 @@ function aggregateData(data, config) {
 
 
 
-
-
-
-
-
-
 function buildChartData(data, config) {
   const labels   = data.map((d) => d.label);
   const datasets = (config.yAxis || []).map((field) => ({

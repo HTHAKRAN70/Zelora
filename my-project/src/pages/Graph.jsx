@@ -188,10 +188,11 @@ function buildConfig(graph, chartData) {
   const isLine       = key === "Line";       
   const isStackedBar = key === "StackedBar";
   const isHistogram  = key === "Histogram";
-
+  console.log("charData------",chartData.datasets);
+  console.log("chartData-0wwsqd",chartData);
   const datasets = chartData.datasets.map((ds, i) => {
     const c = COLORS[i % COLORS.length];
-
+    console.log("adfsdfssd");
     if (isScatter) {
       const rawData = ds.data;
       const scatterData =
@@ -275,10 +276,10 @@ function buildConfig(graph, chartData) {
       fill: false,
     };
   });
-
   const TICK  = { color: "#475569", font: { family: "'DM Mono', monospace", size: 10 } };
   const GRID  = { color: "rgba(255,255,255,0.04)" };
   const BORD  = { color: "rgba(255,255,255,0.06)" };
+
 
   const scalesConfig = !isArcChart
     ? {
@@ -367,7 +368,7 @@ function buildConfig(graph, chartData) {
   };
 }
 
-// ─── Canvas renderer ──────────────────────────────────────────────────────────
+
 function ChartCanvas({ graph, chartData }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -415,7 +416,6 @@ function GraphCard({ graph, isSelected, isLoading, isDeleting, onClick, onDelete
           style={{ background: `linear-gradient(to bottom, ${tm.color}, transparent)` }}
         />
       )}
-
       <span
         role="button"
         aria-label="Delete graph"
@@ -503,29 +503,102 @@ function LoadingBars() {
   );
 }
 
-function DatasetSummary({ chartData }) {
+// function DatasetSummary({ chartData }) {
+//   if (!chartData?.datasets?.length) return null;
+//   return (
+//     <div className="flex gap-2 px-6 pb-6 flex-wrap shrink-0">
+//       {chartData.datasets.map((ds, i) => {
+//         const c    = COLORS[i % COLORS.length];
+//         const vals = ds.data.map((v) => (typeof v === "object" ? v.y : Number(v)));
+//         const sum  = vals.reduce((a, b) => a + b, 0);
+//         const max  = Math.max(...vals);
+//         return (
+//           <div
+//             key={ds.label}
+//             className="flex-1 min-w-[100px] rounded-lg px-3 py-2.5 border"
+//             style={{ borderColor: c.border.replace(",1)", ",0.2)"), background: c.light }}
+//           >
+//             <p className="text-[9px] uppercase tracking-widest mb-1 font-mono" style={{ color: c.hex }}>
+//               {ds.label}
+//             </p>
+//             <p className="text-sm font-bold font-mono" style={{ color: c.hex }}>
+//               {sum.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+//             </p>
+//             <p className="text-[9px] text-slate-600 font-mono mt-0.5">
+//               peak {max.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+//             </p>
+//           </div>
+//         );
+//       })}
+//     </div>
+//   );
+// }
+
+function computeAggStat(vals, aggregation) {
+  if (!vals.length) return { primary: 0, secondary: 0, secondaryLabel: "—" };
+  const aggKey = (aggregation || "sum").toLowerCase();
+  const sum    = vals.reduce((a, b) => a + b, 0);
+  const max    = Math.max(...vals);
+  const min    = Math.min(...vals);
+  const avg    = sum / vals.length;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const median = sorted.length % 2 === 0
+    ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+    : sorted[Math.floor(sorted.length / 2)];
+
+  switch (aggKey) {
+    case "sum":     return { primary: sum,         secondaryLabel: "peak",     secondary: max };
+    case "count":   return { primary: vals.length, secondaryLabel: "non-zero", secondary: vals.filter(v => v !== 0).length };
+    case "avg":
+    case "average": return { primary: avg,         secondaryLabel: "median",   secondary: median };
+    case "min":     return { primary: min,         secondaryLabel: "max",      secondary: max };
+    case "max":     return { primary: max,         secondaryLabel: "min",      secondary: min };
+    default:        return { primary: sum,         secondaryLabel: "peak",     secondary: max };
+  }
+}
+
+function DatasetSummary({ chartData, graph }) {
   if (!chartData?.datasets?.length) return null;
+  // console.log("graph aggregation",graph);
+  const aggregation = graph?.aggregation || "sum";
+  const aggKey      = aggregation.toLowerCase();
+  const agg         = AGG_META[aggKey] || AGG_META.sum;
+
   return (
     <div className="flex gap-2 px-6 pb-6 flex-wrap shrink-0">
       {chartData.datasets.map((ds, i) => {
         const c    = COLORS[i % COLORS.length];
         const vals = ds.data.map((v) => (typeof v === "object" ? v.y : Number(v)));
-        const sum  = vals.reduce((a, b) => a + b, 0);
-        const max  = Math.max(...vals);
+        const { primary, secondary, secondaryLabel } = computeAggStat(vals, aggregation);
+        const isCount = aggKey === "count";
+
         return (
           <div
             key={ds.label}
             className="flex-1 min-w-[100px] rounded-lg px-3 py-2.5 border"
             style={{ borderColor: c.border.replace(",1)", ",0.2)"), background: c.light }}
           >
-            <p className="text-[9px] uppercase tracking-widest mb-1 font-mono" style={{ color: c.hex }}>
-              {ds.label}
-            </p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[9px] uppercase tracking-widest font-mono" style={{ color: c.hex }}>
+                {ds.label}
+              </p>
+              <span
+                className="text-[8px] px-1.5 py-0.5 rounded-full font-mono"
+                style={{ color: agg.color, background: agg.bg, border: `1px solid ${agg.border}` }}
+              >
+                {agg.label}
+              </span>
+            </div>
             <p className="text-sm font-bold font-mono" style={{ color: c.hex }}>
-              {sum.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              {isCount
+                ? primary.toLocaleString()
+                : primary.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </p>
             <p className="text-[9px] text-slate-600 font-mono mt-0.5">
-              peak {max.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              {secondaryLabel}{" "}
+              {isCount
+                ? secondary.toLocaleString()
+                : secondary.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </p>
           </div>
         );
@@ -597,7 +670,6 @@ function ChartPanel({ graph, chartData, loading, error, onClose }) {
           </Tag>
         </div>
       </div>
-
       <div className="flex-1 px-6 py-5 min-h-0">
         {loading && <LoadingBars />}
         {!loading && error && (
@@ -618,7 +690,7 @@ function ChartPanel({ graph, chartData, loading, error, onClose }) {
         )}
       </div>
 
-      {!loading && !error && chartData && <DatasetSummary chartData={chartData} />}
+      {!loading && !error && chartData && <DatasetSummary chartData={chartData} graph={graph} />}
     </>
   );
 }
@@ -699,7 +771,7 @@ export default function Graph() {
         className="flex h-screen w-full overflow-hidden"
         style={{ background: "#060c1a", color: "#cbd5e1", fontFamily: "'DM Mono', monospace" }}
       >
-        {/* ── Sidebar ── */}
+       
         <aside
           className="w-52 shrink-0 flex flex-col"
           style={{ background: "rgba(10,16,32,0.7)", borderRight: "1px solid rgba(30,41,59,0.8)" }}
@@ -767,7 +839,7 @@ export default function Graph() {
           </div>
         </aside>
 
-        {/* ── Main ── */}
+        
         <main
           className="flex-1 flex flex-col overflow-hidden transition-all duration-300"
           style={{ marginRight: panelOpen ? "560px" : "0" }}
@@ -831,7 +903,7 @@ export default function Graph() {
           </div>
         </main>
 
-        {/* ── Backdrop ── */}
+        
         {panelOpen && (
           <div
             className="fixed inset-0 z-40"
@@ -839,8 +911,6 @@ export default function Graph() {
             onClick={handleClose}
           />
         )}
-
-
         <div
           className="fixed top-0 right-0 bottom-0 z-50 flex flex-col overflow-y-auto gd-scroll transition-transform duration-300"
           style={{
