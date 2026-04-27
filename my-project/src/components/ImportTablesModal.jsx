@@ -14,8 +14,9 @@ export default function ImportTablesModal({ onClose }) {
   if (!selectedConnection || !tablesFromDb) {
     return null;
   }
-  console.log("importedTablesFromAPI", importedTablesFromAPI);
 
+  console.log("importedTablesFromAPI", importedTablesFromAPI);
+  
   const tables = Object.keys(tablesFromDb || {});
   const fields = selectedTable ? (tablesFromDb[selectedTable] || []) : [];
 

@@ -47,20 +47,6 @@ export default function ChartSuggestions({ fieldTypes = {}, onChartChange = () =
     }
   }, [selectedChart, onChartChange]);
 
-
-  // const suggestedCharts = useMemo(() => {
-  //   if (fieldNames.length === 0) return [];
-
-  //   const uniqueCharts = new Set();
-  //   fieldNames.forEach((fieldName) => {
-  //     const fieldType = fieldTypes[fieldName];
-  //     const charts = getSuggestedGraphTypes(fieldType);
-  //     charts.forEach((chart) => uniqueCharts.add(chart));
-  //   });
-
-  //   return Array.from(uniqueCharts).sort();
-  // }, [fieldNames, fieldTypes]);
-
   const numericFields = useMemo(
     () =>
       fieldNames.filter(
@@ -71,7 +57,6 @@ export default function ChartSuggestions({ fieldTypes = {}, onChartChange = () =
   );
   const { currentSelectedChartType } = useSelector((state) => state.graph); 
   useEffect(() => {
-    // console.log("ChartSuggestions - currentSelectedChartType from Redux:", currentSelectedChartType);
     setSelectedChart(currentSelectedChartType);
   }, [currentSelectedChartType]);
   const requiresNumeric = (aggName) => {
@@ -104,7 +89,6 @@ export default function ChartSuggestions({ fieldTypes = {}, onChartChange = () =
   useEffect(() => {
     setSelectedAggs([]);
   }, [selectedChart]);
-
   
   const applicableAggregations = useMemo(() => {
     if (!selectedChart) return [];
@@ -112,23 +96,6 @@ export default function ChartSuggestions({ fieldTypes = {}, onChartChange = () =
     return ALL_AGGREGATIONS.filter((agg) => aggNames.includes(agg.name));
   }, [selectedChart]);
 
-
-  // const allowsSingleAggOnly = SINGLE_AGG_CHARTS.includes(selectedChart);
-
-  // const toggleAggregation = (aggName) => {
-  //   setSelectedAggs((prev) => {
-  //     const exists = prev.find((a) => a.name === aggName);
-  //     if (exists) {
-  //       return prev.filter((a) => a.name !== aggName);
-  //     } else {
-  //       if (allowsSingleAggOnly) {
-  //         return [{ name: aggName, field: numericFields[0] || "" }];
-  //       } else {
-  //         return [...prev, { name: aggName, field: numericFields[0] || "" }];
-  //       }
-  //     }
-  //   });
-  // };
 
 
   const handlechartClick = (chart) => {;

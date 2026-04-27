@@ -22,12 +22,10 @@ export default function Tables() {
     useSelector((state) => state.graph);
   const { user } = useSelector((state) => state.auth);
 
-  // ── View state ──────────────────────────────────────────────────────────────
   const [viewMode,         setViewMode]         = useState("list");
   const [selectedforgraph, setselectedforgraph] = useState(false);
   const [showGraphPopup,   setShowGraphPopup]   = useState(false);
 
-  // ── Chart config state ──────────────────────────────────────────────────────
   const [chartSelected, setChartSelected] = useState(null);
   const [xAxis,         setXAxis]         = useState([]);
   const [yAxis,         setYAxis]         = useState([]);
@@ -35,7 +33,6 @@ export default function Tables() {
   const [yLabel,        setYLabel]        = useState("");
   const [aggregation,   setAggregation]   = useState("sum");
 
-  // ── Advanced options state ──────────────────────────────────────────────────
   const [filters,      setFilters]      = useState([]);
   const [rowLimit,     setRowLimit]     = useState(null);
   const [rowSelection, setRowSelection] = useState("all");
@@ -45,7 +42,6 @@ export default function Tables() {
   const tableBodyRef = useRef(null);
   const pageSize     = 10;
 
-  // ── Derived from CHART_RULES ────────────────────────────────────────────────
   const chartKey     = currentSelectedChartType?.trim();
   const currentRules =
     Object.entries(CHART_RULES).find(
@@ -60,17 +56,14 @@ export default function Tables() {
   const allowedAggregations = currentRules?.allowedAggregations || [];
   const isHistogramSelected = chartKey?.toLowerCase() === "histogram";
 
-  // ── Available fields ────────────────────────────────────────────────────────
   const availableFields =
     CurrentSelectedTable?.selectedFields?.length > 0
       ? CurrentSelectedTable.selectedFields
       : Object.keys(tableRows[0] || {});
 
-  // ── Field-type-aware axis options ───────────────────────────────────────────
   const getFieldsForAxis = (axis) => {
     const rule = axis === "x" ? xRule : yRule;
     if (!rule?.types || !Array.isArray(rule.types)) return [];
-    // Exclude already-selected fields on the same axis to prevent duplicates
     const alreadySelected = axis === "x" ? xAxis : yAxis;
     return availableFields.filter((field) => {
       if (alreadySelected.includes(field)) return false;

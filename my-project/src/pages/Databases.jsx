@@ -194,28 +194,7 @@ export default function Databases() {
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            {/* <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Username (optional)</label>
-                <input
-                  type="text"
-                  value={credentials.user || ""}
-                  onChange={(e) => handleCredentialChange("user", e.target.value)}
-                  placeholder="username"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Password (optional)</label>
-                <input
-                  type="password"
-                  value={credentials.password || ""}
-                  onChange={(e) => handleCredentialChange("password", e.target.value)}
-                  placeholder="password"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div> */}
+            
           </>
         );
       case "mysql":

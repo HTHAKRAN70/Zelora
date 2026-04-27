@@ -14,7 +14,7 @@ import {
   getTableFromAPI,
   deleteTable
 } from "../Controllers/db.controller.js";
-import { authenticateToken } from "../Middleware/auth.middleware.js";
+import { authenticateToken } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 

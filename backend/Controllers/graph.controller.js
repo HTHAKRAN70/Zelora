@@ -1,9 +1,8 @@
 import Graph from "../Models/Graph.js";
 import Table from "../Models/Tables.js";
 import DBConnection from "../Models/Database.js";
-import mysql from "mysql2/promise";
-import { Client } from "pg";
-import mongoose from "mongoose";
+import { fetchAggregatedData, fetchRawColumn } from "../Services/dbAggregationSerivce.js";
+
 
 export const saveGraph = async (req, res, next) => {
   try {
@@ -29,28 +28,45 @@ export const createGraph = async (req, res, next) => {
     if (!connection) return res.status(404).json({ error: "Connection not found" });
 
     const isHistogram = graph.chartType?.trim().toLowerCase() === "histogram";
-    const fields = isHistogram
-      ? [...(graph.xAxis || [])]
-      : [...(graph.xAxis || []), ...(graph.yAxis || [])];
 
     const queryOptions = {
       filters:      graph.filters      || [],
       rowLimit:     graph.rowLimit     || null,
       rowSelection: graph.rowSelection || "all",
       sortBy:       graph.sortBy?.field ? graph.sortBy : null,
+      aggregation:  graph.aggregation  || "sum",
+      xAxis:        graph.xAxis        || [],
+      yAxis:        graph.yAxis        || [],
     };
 
-    const rawData = await fetchRawData(
-      connection.dbtype,
-      connection.credentials,
-      table.tableName,
-      fields,
-      queryOptions
-    );
+    let chartData;
 
-    const chartData = isHistogram
-      ? buildHistogramData(rawData, graph)
-      : buildChartData(aggregateData(rawData, graph), graph);
+    if (isHistogram) {
+      // Histogram: fetch only the single x-axis column (much lighter than all rows)
+      const field  = (graph.xAxis || [])[0];
+      if (!field) return res.status(400).json({ error: "xAxis[0] is required for histogram" });
+
+      const values = await fetchRawColumn(
+        connection.dbtype,
+        connection.credentials,
+        table.tableName,
+        field,
+        { filters: queryOptions.filters, rowLimit: queryOptions.rowLimit }
+      );
+      console.log("histogram,->>>>>>>>",values);
+      chartData = buildHistogramData(values, field, graph.binCount);
+    } else {
+      // All other chart types: full DB-level aggregation
+      const aggregated = await fetchAggregatedData(
+        connection.dbtype,
+        connection.credentials,
+        table.tableName,
+        queryOptions
+      );
+      // console.log("aggregated,->>>>>",aggregated);
+      chartData = buildChartData(aggregated, graph.yAxis || []);
+      // console.log("chartData->>>>",chartData);
+    }
 
     res.json({ success: true, chartData });
   } catch (error) {
@@ -58,9 +74,7 @@ export const createGraph = async (req, res, next) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET ALL GRAPHS
-// ─────────────────────────────────────────────────────────────────────────────
+
 export const getAllgraphs = async (req, res, next) => {
   try {
     const graphs = await Graph.find({ userId: req.body.userId }).sort({ createdAt: -1 });
@@ -70,9 +84,7 @@ export const getAllgraphs = async (req, res, next) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE GRAPH
-// ─────────────────────────────────────────────────────────────────────────────
+
 export const deleteGraph = async (req, res, next) => {
   try {
     const { graphId } = req.params;
@@ -86,27 +98,35 @@ export const deleteGraph = async (req, res, next) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HISTOGRAM  — bins a numeric field into N frequency buckets
-// ─────────────────────────────────────────────────────────────────────────────
-function buildHistogramData(data, config) {
-  const field = (config.xAxis || [])[0];
-  if (!field) return { labels: [], datasets: [{ label: "Frequency", data: [] }] };
 
-  // Extract and sanitise numeric values
-  const values = data
-    .map((row) => Number(row[field]))
-    .filter((v) => !isNaN(v) && isFinite(v));
+// Shapes already-aggregated rows into Chart.js dataset format
+// aggregated rows: [{ label, y1: n, y2: n }]
+function buildChartData(aggregated, yFields) {
+  const labels   = aggregated.map((r) => r.label);
+  const datasets = yFields.map((field) => ({
+    label: field,
+    data:  aggregated.map((r) => r[field] ?? 0),
+  }));
+  return { labels, datasets };
+}
 
+// Builds histogram bins from raw numeric values
+function buildHistogramData(values, field, binCount) {
   if (values.length === 0) {
-    return { labels: [], datasets: [{ label: `${field} (frequency)`, data: [] }] };
+    return { 
+      labels: [], 
+      datasets: [
+        { 
+          label: `${field} (frequency)`, 
+          data: [] 
+        }] 
+      };
   }
-
-  const binCount = Math.min(Number(config.binCount) || 10, 50); // cap at 50 bins
-  const minVal   = Math.min(...values);
-  const maxVal   = Math.max(...values);
-
-  // Edge case: all values identical → single bin
+  
+  const bins   = Math.min(Number(binCount) || 10, 50);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  
   if (minVal === maxVal) {
     return {
       labels:   [String(minVal)],
@@ -114,22 +134,17 @@ function buildHistogramData(data, config) {
     };
   }
 
-  const binWidth = (maxVal - minVal) / binCount;
-  const bins     = Array(binCount).fill(0);
+  const binWidth  = (maxVal - minVal) / bins;
+  const counts    = Array(bins).fill(0);
 
   values.forEach((v) => {
     let idx = Math.floor((v - minVal) / binWidth);
-    if (idx >= binCount) idx = binCount - 1; // clamp the maximum value
-    bins[idx]++;
+    if (idx >= bins) idx = bins - 1;
+    counts[idx]++;
   });
 
-  // Format label numbers — integer if whole, 1 decimal otherwise
-  const fmt = (n) => {
-    if (Number.isInteger(n)) return String(n);
-    return n % 1 === 0 ? String(n) : n.toFixed(1);
-  };
-
-  const labels = bins.map((_, i) => {
+  const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  const labels = counts.map((_, i) => {
     const lo = minVal + i * binWidth;
     const hi = minVal + (i + 1) * binWidth;
     return `${fmt(lo)}–${fmt(hi)}`;
@@ -137,299 +152,13 @@ function buildHistogramData(data, config) {
 
   return {
     labels,
-    datasets: [{ label: `${field} (frequency)`, data: bins }],
+    datasets: [{ label: `${field} (frequency)`, data: counts }],
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS — filter builders per DB
+// CONFIG TRIMMER  (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
-function parseNumericValue(v) {
-  const n = Number(v);
-  return isNaN(n) ? v : n;
-}
-
-function buildMySQLWhere(filters, params) {
-  if (!filters || filters.length === 0) return "";
-  const clauses = filters
-    .filter((f) => f.field && f.operator)
-    .map((f) => {
-      switch (f.operator) {
-        case "=":            params.push(f.value);                   return `\`${f.field}\` = ?`;
-        case "!=":           params.push(f.value);                   return `\`${f.field}\` != ?`;
-        case ">":            params.push(parseNumericValue(f.value)); return `\`${f.field}\` > ?`;
-        case ">=":           params.push(parseNumericValue(f.value)); return `\`${f.field}\` >= ?`;
-        case "<":            params.push(parseNumericValue(f.value)); return `\`${f.field}\` < ?`;
-        case "<=":           params.push(parseNumericValue(f.value)); return `\`${f.field}\` <= ?`;
-        case "contains":     params.push(`%${f.value}%`);            return `\`${f.field}\` LIKE ?`;
-        case "not_contains": params.push(`%${f.value}%`);            return `\`${f.field}\` NOT LIKE ?`;
-        default:             params.push(f.value);                   return `\`${f.field}\` = ?`;
-      }
-    });
-  return clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-}
-
-function buildPostgresWhere(filters, params) {
-  if (!filters || filters.length === 0) return "";
-  const clauses = filters
-    .filter((f) => f.field && f.operator)
-    .map((f) => {
-      const idx = params.length + 1;
-      switch (f.operator) {
-        case "=":            params.push(f.value);                   return `"${f.field}" = $${idx}`;
-        case "!=":           params.push(f.value);                   return `"${f.field}" != $${idx}`;
-        case ">":            params.push(parseNumericValue(f.value)); return `"${f.field}" > $${idx}`;
-        case ">=":           params.push(parseNumericValue(f.value)); return `"${f.field}" >= $${idx}`;
-        case "<":            params.push(parseNumericValue(f.value)); return `"${f.field}" < $${idx}`;
-        case "<=":           params.push(parseNumericValue(f.value)); return `"${f.field}" <= $${idx}`;
-        case "contains":     params.push(`%${f.value}%`);            return `"${f.field}"::text ILIKE $${idx}`;
-        case "not_contains": params.push(`%${f.value}%`);            return `"${f.field}"::text NOT ILIKE $${idx}`;
-        default:             params.push(f.value);                   return `"${f.field}" = $${idx}`;
-      }
-    });
-  return clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-}
-
-function buildMongoMatch(filters) {
-  if (!filters || filters.length === 0) return {};
-  const match = {};
-  filters.forEach((f) => {
-    if (!f.field || !f.operator) return;
-    const v = parseNumericValue(f.value);
-    switch (f.operator) {
-      case "=":            match[f.field] = { $eq: v };                          break;
-      case "!=":           match[f.field] = { $ne: v };                          break;
-      case ">":            match[f.field] = { $gt: v };                          break;
-      case ">=":           match[f.field] = { $gte: v };                         break;
-      case "<":            match[f.field] = { $lt: v };                          break;
-      case "<=":           match[f.field] = { $lte: v };                         break;
-      case "contains":     match[f.field] = { $regex: f.value, $options: "i" }; break;
-      case "not_contains": match[f.field] = { $not: new RegExp(f.value, "i") }; break;
-      default:             match[f.field] = { $eq: v };
-    }
-  });
-  return match;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FETCH RAW DATA
-// ─────────────────────────────────────────────────────────────────────────────
-async function fetchRawData(dbType, credentials, tableName, fields, options = {}) {
-  const {
-    filters      = [],
-    rowLimit     = null,
-    rowSelection = "all",
-    sortBy       = null,
-  } = options;
-
-  const limit  = rowLimit ? Number(rowLimit) : null;
-  const isHead = rowSelection === "head";
-  const isTail = rowSelection === "tail";
-
-  if (dbType === "mysql") {
-    const conn = await mysql.createConnection({
-      host:     credentials.host,
-      port:     credentials.port || 3306,
-      user:     credentials.user,
-      password: credentials.password,
-      database: credentials.database,
-    });
-    try {
-      const escaped = fields.map((f) => `\`${f}\``).join(", ");
-      const params  = [];
-      const where   = buildMySQLWhere(filters, params);
-      let orderDir  = "ASC";
-      if (sortBy?.field) {
-        orderDir = isTail
-          ? (sortBy.order === "desc" ? "ASC" : "DESC")
-          : (sortBy.order === "desc" ? "DESC" : "ASC");
-      }
-      const orderClause = sortBy?.field ? `ORDER BY \`${sortBy.field}\` ${orderDir}` : "";
-      const limitClause = limit && (isHead || (isTail && sortBy?.field)) ? `LIMIT ${limit}` : "";
-      const sql = `SELECT ${escaped} FROM \`${tableName}\` ${where} ${orderClause} ${limitClause}`.trim();
-      const [rows] = await conn.execute(sql, params);
-      if (isTail && sortBy?.field)          return rows.reverse();
-      if (isTail && !sortBy?.field && limit) return rows.slice(-limit);
-      if (rowSelection === "all" && limit)   return rows.slice(0, limit);
-      return rows;
-    } finally {
-      await conn.end();
-    }
-  }
-
-  if (dbType === "postgresql") {
-    const client = new Client({
-      host:     credentials.host,
-      port:     credentials.port || 5432,
-      user:     credentials.user,
-      password: credentials.password,
-      database: credentials.database,
-    });
-    await client.connect();
-    try {
-      const escaped = fields.map((f) => `"${f}"`).join(", ");
-      const params  = [];
-      const where   = buildPostgresWhere(filters, params);
-      let orderDir  = "ASC";
-      if (sortBy?.field) {
-        orderDir = isTail
-          ? (sortBy.order === "desc" ? "ASC" : "DESC")
-          : (sortBy.order === "desc" ? "DESC" : "ASC");
-      }
-      const orderClause = sortBy?.field ? `ORDER BY "${sortBy.field}" ${orderDir}` : "";
-      const limitClause = limit && (isHead || (isTail && sortBy?.field)) ? `LIMIT ${limit}` : "";
-      const sql    = `SELECT ${escaped} FROM "${tableName}" ${where} ${orderClause} ${limitClause}`.trim();
-      const result = await client.query(sql, params);
-      const rows   = result.rows;
-      if (isTail && sortBy?.field)          return rows.reverse();
-      if (isTail && !sortBy?.field && limit) return rows.slice(-limit);
-      if (rowSelection === "all" && limit)   return rows.slice(0, limit);
-      return rows;
-    } finally {
-      await client.end();
-    }
-  }
-
-  if (dbType === "mongodb") {
-    const uri =
-      credentials.uri ||
-      `mongodb://${credentials.host}:${credentials.port || 27017}/${credentials.database}`;
-    const conn = await mongoose.createConnection(uri).asPromise();
-    try {
-      const db         = conn.db;
-      const projection = {};
-      fields.forEach((f) => { projection[f] = 1; });
-      const matchStage = buildMongoMatch(filters);
-      let sortStage    = {};
-      if (sortBy?.field) {
-        const dir = isTail
-          ? (sortBy.order === "desc" ? 1 : -1)
-          : (sortBy.order === "desc" ? -1 : 1);
-        sortStage = { [sortBy.field]: dir };
-      }
-      let cursor = db.collection(tableName).find(matchStage, { projection });
-      if (sortBy?.field) cursor = cursor.sort(sortStage);
-      if (limit && (isHead || (isTail && sortBy?.field))) {
-        cursor = cursor.limit(limit);
-      } else if (limit && isTail && !sortBy?.field) {
-        const total = await db.collection(tableName).countDocuments(matchStage);
-        cursor = cursor.skip(Math.max(0, total - limit));
-      }
-      const docs = await cursor.toArray();
-      if (isTail && sortBy?.field)          return docs.reverse();
-      if (rowSelection === "all" && limit)   return docs.slice(0, limit);
-      return docs;
-    } finally {
-      await conn.close();
-    }
-  }
-
-  if (dbType === "api") {
-    const { uri, method = "GET", headers = {} } = credentials;
-    const response = await fetch(uri, { method, headers });
-    const data     = await response.json();
-    let rows       = Array.isArray(data) ? data : data.data || [data];
-    if (filters.length > 0) {
-      rows = rows.filter((row) =>
-        filters.every((f) => {
-          const cellVal   = row[f.field];
-          const filterVal = parseNumericValue(f.value);
-          switch (f.operator) {
-            case "=":            return cellVal == filterVal;
-            case "!=":           return cellVal != filterVal;
-            case ">":            return Number(cellVal) > Number(filterVal);
-            case ">=":           return Number(cellVal) >= Number(filterVal);
-            case "<":            return Number(cellVal) < Number(filterVal);
-            case "<=":           return Number(cellVal) <= Number(filterVal);
-            case "contains":     return String(cellVal).toLowerCase().includes(String(f.value).toLowerCase());
-            case "not_contains": return !String(cellVal).toLowerCase().includes(String(f.value).toLowerCase());
-            default:             return true;
-          }
-        })
-      );
-    }
-    if (sortBy?.field) {
-      rows.sort((a, b) => {
-        const av = a[sortBy.field], bv = b[sortBy.field];
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortBy.order === "desc" ? -cmp : cmp;
-      });
-    }
-    if (limit) rows = isTail ? rows.slice(-limit) : rows.slice(0, limit);
-    return rows;
-  }
-
-  throw new Error(`Unsupported database type: ${dbType}`);
-}
-
-
-function aggregateData(data, config) {
-  const grouped = {};
-  const avgCounter = {};
-  const xKey = config.xAxis?.[0]; 
-  const yAxis = config.yAxis || [];
-  const agg = (config.aggregation || "sum").trim().toLowerCase();
-  for (const row of data) {
-    const key = row[xKey];
-    if (!grouped[key]) {
-      grouped[key] = { label: key, values: {} };
-      if (agg === "avg" || agg === "average") {
-        avgCounter[key] = {};
-      }
-      for (const y of yAxis) {
-        grouped[key].values[y] = 0;
-        if (avgCounter[key]) avgCounter[key][y] = 0;
-      }
-    }
-
-    const groupValues = grouped[key].values;
-    for (const y of yAxis) {
-      const value = Number(row[y]) || 0;
-      switch (agg) {
-        case "sum":
-          groupValues[y] += value;
-          break;
-        case "count":
-          groupValues[y] += 1;
-          break;
-        case "avg":
-        case "average":
-          groupValues[y] += value;
-          avgCounter[key][y] += 1;
-          break;
-        case "max":
-          groupValues[y] = Math.max(groupValues[y], value);
-          break;
-        case "min":
-          groupValues[y] =
-          groupValues[y] === 0 ? value : Math.min(groupValues[y], value);
-          break;
-        default:
-          groupValues[y] += value;
-      }
-    }
-  }
-  if (agg === "avg" || agg === "average") {
-    for (const key in grouped) {
-      for (const y of yAxis) {
-        grouped[key].values[y] =
-          grouped[key].values[y] / (avgCounter[key][y] || 1);
-      }
-    }
-  }
-  return Object.values(grouped);
-}
-
-
-
-function buildChartData(data, config) {
-  const labels   = data.map((d) => d.label);
-  const datasets = (config.yAxis || []).map((field) => ({
-    label: field,
-    data:  data.map((d) => d.values[field]),
-  }));
-  return { labels, datasets };
-}
 
 function trimConfig(config) {
   const t = { ...config };
